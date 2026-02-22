@@ -1,0 +1,37 @@
+{
+  "name": "ayesman",
+  "displayName": "AYesMan",
+  "description": "Companion extension to inject automation and quota data into Antigravity Webview",
+  "version": "0.0.1",
+  "publisher": "ayesmen",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ayesman.startObserver",
+        "title": "AYesMan: Start Observer"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.90.0",
+    "@types/node": "20.x",
+    "typescript": "^5.4.5",
+    "esbuild": "^0.21.5"
+  }
+}
