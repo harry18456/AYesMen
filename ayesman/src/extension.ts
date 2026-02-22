@@ -80,9 +80,9 @@ export function activate(context: vscode.ExtensionContext) {
 }
 
 function patchCodeiumWebview(context: vscode.ExtensionContext, forcePrompt = false) {
-    const codeiumExt = vscode.extensions.getExtension('codeium.codeium');
+    const codeiumExt = vscode.extensions.getExtension('google.antigravity') || vscode.extensions.getExtension('codeium.codeium');
     if (!codeiumExt) {
-        if (forcePrompt) vscode.window.showErrorMessage('[AYesMan] Codeium extension not found.');
+        if (forcePrompt) vscode.window.showErrorMessage('[AYesMan] Antigravity/Codeium extension not found.');
         return;
     }
 
@@ -93,6 +93,7 @@ function patchCodeiumWebview(context: vscode.ExtensionContext, forcePrompt = fal
     
     // We search simple hardcoded common paths
     const possiblePaths = [
+        path.join(extPath, 'out', 'media', 'chat.js'), // Antigravity IDE path
         path.join(extPath, 'dist', 'webview', 'index.js'),
         path.join(extPath, 'dist', 'chat', 'index.js'),
         path.join(extPath, 'dist', 'panel', 'index.js')
