@@ -1,148 +1,377 @@
-import * as vscode from 'vscode';
-import * as http from 'http';
-import * as fs from 'fs';
-import * as path from 'path';
+import * as vscode from "vscode";
+import * as https from "https";
+import * as http from "http";
+import { execSync } from "child_process";
 
-// Constants
-const AYESMAN_PORT = 45642;
-let statusBarItem: vscode.StatusBarItem;
+// ─── Types ───────────────────────────────────────────────────────────────────
+interface QuotaEntry {
+  label: string;
+  modelId: string;
+  remainingFraction: number;
+  resetTime?: string;
+}
 
+interface CreditsInfo {
+  availablePromptCredits: number;
+  availableFlowCredits: number;
+  monthlyPromptCredits: number;
+  monthlyFlowCredits: number;
+  planName: string;
+}
+
+interface ServerInfo {
+  port: number;
+  csrfToken: string;
+  useHttps: boolean;
+}
+
+// ─── State ───────────────────────────────────────────────────────────────────
+const QUOTA_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+
+let quotaStatusBar: vscode.StatusBarItem;
+let quotaPollTimer: ReturnType<typeof setInterval> | undefined;
+let latestQuota: QuotaEntry[] = [];
+let latestCredits: CreditsInfo | undefined;
+let cachedServerInfo: ServerInfo | undefined;
+
+// ─── Activate ────────────────────────────────────────────────────────────────
 export function activate(context: vscode.ExtensionContext) {
-    console.log('[AYesMan] Extension Activated.');
+  console.log("[AYesMan] Extension Activated.");
 
-    // 1. Create Status Bar Item
-    statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    statusBarItem.text = '$(zap) AYesMan: Wait...';
-    statusBarItem.tooltip = 'Model Quota - Initializing';
-    statusBarItem.show();
-    context.subscriptions.push(statusBarItem);
+  // ── Status Bar: Single Quota Item ──
+  quotaStatusBar = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    200,
+  );
+  quotaStatusBar.text = "$(loading~spin) Quota: Loading...";
+  quotaStatusBar.tooltip = "AYesMan - Loading quota data...";
+  quotaStatusBar.command = "ayesman.refreshQuota";
+  quotaStatusBar.show();
+  context.subscriptions.push(quotaStatusBar);
 
-    // 2. Start Local HTTP Server to receive messages from Webview
-    const server = http.createServer((req, res) => {
-        // Simple CORS to allow the webview iframe strictly to talk to this server
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-        res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  // ── Commands ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ayesman.refreshQuota", () =>
+      fetchQuota(true),
+    ),
+  );
 
-        if (req.method === 'OPTIONS') {
-            res.writeHead(204);
-            res.end();
-            return;
-        }
+  // ── Start Quota Polling ──
+  setTimeout(() => fetchQuota(), 5000);
+  quotaPollTimer = setInterval(() => fetchQuota(), QUOTA_POLL_INTERVAL_MS);
+  context.subscriptions.push({
+    dispose: () => {
+      if (quotaPollTimer) clearInterval(quotaPollTimer);
+    },
+  });
 
-        if (req.method === 'POST' && req.url === '/ayesman-event') {
-            let body = '';
-            req.on('data', chunk => body += chunk.toString());
-            req.on('end', () => {
-                res.writeHead(200);
-                res.end(JSON.stringify({ status: 'ok' }));
-
-                try {
-                    const data = JSON.parse(body);
-                    if (data.type === 'quotaUpdate') {
-                        const remaining = data.payload.remainingFraction;
-                        const model = data.payload.model;
-                        
-                        // Update UI
-                        const percentage = Math.round(remaining * 100);
-                        statusBarItem.text = `$(color-mode) ${model}: ${percentage}%`;
-                        if (percentage < 20) {
-                            statusBarItem.color = new vscode.ThemeColor('errorForeground');
-                        } else {
-                            statusBarItem.color = undefined;
-                        }
-                    }
-                } catch (e) {
-                    console.error('[AYesMan] Error parsing incoming body', e);
-                }
-            });
-            return;
-        }
-
-        res.writeHead(404);
-        res.end();
-    });
-
-    server.listen(AYESMAN_PORT, '127.0.0.1', () => {
-        console.log(`[AYesMan] HTTP Server listening on port ${AYESMAN_PORT}`);
-    });
-    // Ensure the server closes on deactivation
-    context.subscriptions.push({ dispose: () => server.close() });
-
-    // 3. Patch the Antigravity (Codeium) Extension Webview
-    patchCodeiumWebview(context);
-    
-    // Command to manually re-patch or check
-    let disposable = vscode.commands.registerCommand('ayesman.patchIt', () => {
-        patchCodeiumWebview(context, true);
-    });
-    context.subscriptions.push(disposable);
+  console.log("[AYesMan] Quota Dashboard ready.");
 }
 
-function patchCodeiumWebview(context: vscode.ExtensionContext, forcePrompt = false) {
-    const codeiumExt = vscode.extensions.getExtension('google.antigravity') || vscode.extensions.getExtension('codeium.codeium');
-    if (!codeiumExt) {
-        if (forcePrompt) vscode.window.showErrorMessage('[AYesMan] Antigravity/Codeium extension not found.');
-        return;
+// ─── Language Server Discovery ───────────────────────────────────────────────
+async function discoverServer(): Promise<ServerInfo | undefined> {
+  if (cachedServerInfo) return cachedServerInfo;
+
+  try {
+    // Step 1: Extract CSRF token and PID from language server process args
+    const cmdlineOutput = execSync(
+      'powershell -Command "Get-CimInstance Win32_Process -Filter \\"name = \'language_server_windows_x64.exe\'\\" | Select-Object -First 1 | ForEach-Object { Write-Host $_.ProcessId; Write-Host $_.CommandLine }"',
+      { encoding: "utf-8", timeout: 10000 },
+    ).trim();
+
+    const lines = cmdlineOutput.split("\n").map((l) => l.trim());
+    const pid = parseInt(lines[0], 10);
+    const cmdline = lines.slice(1).join(" ");
+
+    const csrfMatch = cmdline.match(/--csrf_token\s+(\S+)/);
+    if (!csrfMatch || !pid) {
+      console.error(
+        "[AYesMan] Could not extract CSRF/PID from language server",
+      );
+      return undefined;
+    }
+    const csrfToken = csrfMatch[1];
+
+    // Step 2: Get listening ports for the process
+    const portsOutput = execSync(
+      `powershell -Command "Get-NetTCPConnection -OwningProcess ${pid} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort"`,
+      { encoding: "utf-8", timeout: 10000 },
+    ).trim();
+    const ports = portsOutput
+      .split(/\s+/)
+      .map((p) => parseInt(p, 10))
+      .filter((p) => !isNaN(p));
+
+    if (ports.length === 0) {
+      console.error("[AYesMan] No listening ports found for language server");
+      return undefined;
     }
 
-    // Try finding the primary dist/webview file or similar path where they host the js
-    // Typically: ~/.vscode/extensions/codeium.codeium-*/dist/extension.js or comparable.
-    // However, Webview code is often inside something like dist/webview/index.js.
-    const extPath = codeiumExt.extensionPath;
-    
-    // We search simple hardcoded common paths
-    const possiblePaths = [
-        path.join(extPath, 'out', 'media', 'chat.js'), // Antigravity IDE path
-        path.join(extPath, 'dist', 'webview', 'index.js'),
-        path.join(extPath, 'dist', 'chat', 'index.js'),
-        path.join(extPath, 'dist', 'panel', 'index.js')
-    ];
+    console.log(
+      `[AYesMan] LS PID=${pid}, CSRF=${csrfToken.substring(0, 8)}..., ports=${ports.join(",")}`,
+    );
 
-    let targetFile = '';
-    for (const p of possiblePaths) {
-        if (fs.existsSync(p)) {
-            targetFile = p;
-            break;
+    // Step 3: Probe ports to find the gRPC API (try HTTPS first, then HTTP)
+    for (const port of ports) {
+      for (const useHttps of [true, false]) {
+        const ok = await probePort(port, csrfToken, useHttps);
+        if (ok) {
+          cachedServerInfo = { port, csrfToken, useHttps };
+          console.log(
+            `[AYesMan] Found gRPC at ${useHttps ? "https" : "http"}://127.0.0.1:${port}`,
+          );
+          return cachedServerInfo;
         }
+      }
     }
 
-    if (!targetFile) {
-        // Fallback: search recursively in extPath but limit depth (too intensive for UI thread in practice, keeping simple)
-        if (forcePrompt) vscode.window.showErrorMessage('[AYesMan] Could not find Codeium webview JS file.');
-        return;
-    }
-
-    try {
-        const content = fs.readFileSync(targetFile, 'utf8');
-        if (content.includes('__ayesman_injected')) {
-            if (forcePrompt) vscode.window.showInformationMessage('[AYesMan] Patch already applied!');
-            return;
-        }
-
-        // Read our inject script
-        const injectScriptPath = path.join(context.extensionPath, 'src', 'ayesman-inject.js');
-        if (!fs.existsSync(injectScriptPath)) {
-             console.error('[AYesMan] inject script not found at', injectScriptPath);
-             return;
-        }
-        
-        let scriptContent = fs.readFileSync(injectScriptPath, 'utf8');
-        
-        // Safety wrapper to avoid breaking webview with "const AYESMAN" syntax collisions
-        const appendedContent = content + `\n\n// AYESMAN INJECTION START\ntry {\n${scriptContent}\n} catch(e) { console.error('AYesMan inject failed', e); }\n// AYESMAN INJECTION END\n`;
-        
-        fs.writeFileSync(targetFile, appendedContent, 'utf8');
-        vscode.window.showInformationMessage('[AYesMan] Successfully patched Codeium webview! Please "Developer: Reload Window" to apply.', 'Reload Window').then(res => {
-            if (res === 'Reload Window') {
-                vscode.commands.executeCommand('workbench.action.reloadWindow');
-            }
-        });
-        
-    } catch (e: any) {
-        console.error('[AYesMan] Failed to patch Webview JS:', e);
-        if (forcePrompt) vscode.window.showErrorMessage('[AYesMan] Failed to patch file: ' + e.message);
-    }
+    console.error("[AYesMan] Could not find working gRPC port");
+    return undefined;
+  } catch (err: any) {
+    console.error("[AYesMan] Server discovery failed:", err.message);
+    return undefined;
+  }
 }
 
-export function deactivate() {}
+function probePort(
+  port: number,
+  csrfToken: string,
+  useHttps: boolean,
+): Promise<boolean> {
+  return new Promise<boolean>((resolve) => {
+    const options: https.RequestOptions = {
+      hostname: "127.0.0.1",
+      port,
+      path: "/exa.language_server_pb.LanguageServerService/Heartbeat",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-codeium-csrf-token": csrfToken,
+        "Connect-Protocol-Version": "1",
+      },
+      timeout: 2000,
+      rejectUnauthorized: false,
+    };
+
+    const makeReq = useHttps ? https.request : http.request;
+    const req = makeReq(options, (res) => {
+      res.on("data", () => {}); // drain
+      res.on("end", () => resolve(res.statusCode === 200));
+    });
+    req.on("error", () => resolve(false));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.write("{}");
+    req.end();
+  });
+}
+
+// ─── gRPC Call ───────────────────────────────────────────────────────────────
+function callGrpc(
+  server: ServerInfo,
+  method: string,
+  body: any = {},
+): Promise<any> {
+  return new Promise((resolve, reject) => {
+    const data = JSON.stringify(body);
+    const options: http.RequestOptions = {
+      hostname: "127.0.0.1",
+      port: server.port,
+      path: `/exa.language_server_pb.LanguageServerService/${method}`,
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-codeium-csrf-token": server.csrfToken,
+        "Connect-Protocol-Version": "1",
+        "Content-Length": Buffer.byteLength(data),
+      },
+      timeout: 10000,
+      ...(server.useHttps ? { rejectUnauthorized: false } : {}),
+    };
+
+    const makeReq = server.useHttps ? https.request : http.request;
+    const req = makeReq(options, (res) => {
+      let responseBody = "";
+      res.on("data", (chunk: Buffer) => (responseBody += chunk.toString()));
+      res.on("end", () => {
+        if (res.statusCode === 200) {
+          try {
+            resolve(JSON.parse(responseBody));
+          } catch {
+            resolve(responseBody);
+          }
+        } else {
+          reject(new Error(`HTTP ${res.statusCode}: ${responseBody}`));
+        }
+      });
+    });
+    req.on("error", reject);
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Timeout"));
+    });
+    req.write(data);
+    req.end();
+  });
+}
+
+// ─── Fetch Quota ─────────────────────────────────────────────────────────────
+async function fetchQuota(showNotification = false) {
+  try {
+    const server = await discoverServer();
+    if (!server) {
+      quotaStatusBar.text = "$(warning) Quota: No Server";
+      quotaStatusBar.tooltip =
+        "Could not connect to Antigravity language server";
+      if (showNotification) {
+        vscode.window.showWarningMessage(
+          "[AYesMan] Cannot find Antigravity language server.",
+        );
+      }
+      return;
+    }
+
+    const userStatus = await callGrpc(server, "GetUserStatus");
+
+    // Extract credits
+    const planStatus = userStatus?.userStatus?.planStatus;
+    if (planStatus) {
+      latestCredits = {
+        availablePromptCredits: planStatus.availablePromptCredits || 0,
+        availableFlowCredits: planStatus.availableFlowCredits || 0,
+        monthlyPromptCredits: planStatus.planInfo?.monthlyPromptCredits || 0,
+        monthlyFlowCredits: planStatus.planInfo?.monthlyFlowCredits || 0,
+        planName: planStatus.planInfo?.planName || 'Unknown',
+      };
+      updateQuotaStatusBar(); // credits are included in the quota tooltip
+    }
+
+    // Extract model quota from cascade configs
+    const cascadeConfigs =
+      userStatus?.userStatus?.cascadeModelConfigData?.clientModelConfigs;
+    if (cascadeConfigs && Array.isArray(cascadeConfigs)) {
+      latestQuota = cascadeConfigs
+        .filter((c: any) => c.quotaInfo)
+        .map((c: any) => ({
+          label: c.label || "Unknown",
+          modelId: c.modelOrAlias?.model || "",
+          remainingFraction: c.quotaInfo?.remainingFraction ?? 1,
+          resetTime: c.quotaInfo?.resetTime,
+        }));
+      updateQuotaStatusBar();
+    }
+
+    // Also get command model configs for completion quota
+    const cmdConfigs = await callGrpc(server, "GetCommandModelConfigs");
+    // Merge command model quotas (these are for autocomplete)
+    if (cmdConfigs?.clientModelConfigs) {
+      for (const c of cmdConfigs.clientModelConfigs) {
+        if (
+          c.quotaInfo &&
+          !latestQuota.find(
+            (q: QuotaEntry) => q.modelId === c.modelOrAlias?.model,
+          )
+        ) {
+          latestQuota.push({
+            label: `${c.label} (Autocomplete)`,
+            modelId: c.modelOrAlias?.model || "",
+            remainingFraction: c.quotaInfo.remainingFraction ?? 1,
+            resetTime: c.quotaInfo.resetTime,
+          });
+        }
+      }
+      updateQuotaStatusBar();
+    }
+
+    if (showNotification) {
+      vscode.window.showInformationMessage(
+        `[AYesMan] Quota refreshed: ${latestQuota.length} models loaded.`,
+      );
+    }
+
+    console.log(
+      `[AYesMan] Quota refreshed: ${latestQuota.length} models, credits: P=${latestCredits?.availablePromptCredits} F=${latestCredits?.availableFlowCredits}`,
+    );
+  } catch (err: any) {
+    console.error("[AYesMan] Quota fetch error:", err.message);
+    // Clear cache to retry discovery next time
+    cachedServerInfo = undefined;
+    quotaStatusBar.text = "$(error) Quota: Error";
+    quotaStatusBar.tooltip = `Error: ${err.message}`;
+  }
+}
+
+// ─── Status Bar Updates ──────────────────────────────────────────────────────
+function updateQuotaStatusBar() {
+  if (latestQuota.length === 0) {
+    quotaStatusBar.text = "$(pulse) Quota: No Data";
+    return;
+  }
+
+  // Sort alphabetically by model name
+  const sorted = [...latestQuota].sort((a, b) => a.label.localeCompare(b.label));
+  const lowest = [...latestQuota].reduce((min, q) =>
+    q.remainingFraction < min.remainingFraction ? q : min, latestQuota[0]);
+
+  const pct = Math.round(lowest.remainingFraction * 100);
+  const icon = pct >= 80 ? "$(check)" : pct >= 40 ? "$(warning)" : "$(error)";
+  const shortName =
+    lowest.label.length > 18
+      ? lowest.label.substring(0, 15) + "..."
+      : lowest.label;
+  quotaStatusBar.text = `${icon} ${shortName}: ${pct}%`;
+
+  // Build rich hover tooltip
+  const modelLines = sorted.map((q) => {
+    const p = Math.round(q.remainingFraction * 100);
+    const dot = p >= 80 ? "🟢" : p >= 40 ? "🟡" : "🔴";
+    const resetStr = q.resetTime ? ` _(${formatResetTime(q.resetTime)})_` : "";
+    return `${dot} **${q.label}** — ${p}%${resetStr}`;
+  });
+
+  let tooltipMd = `### AYesMan Quota\n\n${modelLines.join("  \n")}`;
+
+  // Append credits info
+  if (latestCredits) {
+    const { availablePromptCredits, monthlyPromptCredits, availableFlowCredits, monthlyFlowCredits, planName } = latestCredits;
+    tooltipMd += `\n\n---\n\n`;
+    tooltipMd += `**${planName} Plan**\n\n`;
+    tooltipMd += `💬 **Prompt** (autocomplete & chat): ${availablePromptCredits.toLocaleString()} / ${monthlyPromptCredits.toLocaleString()}\n\n`;
+    tooltipMd += `🔄 **Flow** (agent workflows): ${availableFlowCredits.toLocaleString()} / ${monthlyFlowCredits.toLocaleString()}`;
+  }
+
+  tooltipMd += `\n\n_Click to refresh_`;
+
+  const md = new vscode.MarkdownString(tooltipMd);
+  md.isTrusted = true;
+  quotaStatusBar.tooltip = md;
+
+  quotaStatusBar.backgroundColor =
+    pct < 20
+      ? new vscode.ThemeColor("statusBarItem.errorBackground")
+      : pct < 40
+        ? new vscode.ThemeColor("statusBarItem.warningBackground")
+        : undefined;
+}
+
+function formatResetTime(isoStr: string): string {
+  try {
+    const reset = new Date(isoStr);
+    const now = new Date();
+    const diffMs = reset.getTime() - now.getTime();
+    if (diffMs < 0) return "resets now";
+    const hrs = Math.floor(diffMs / 3600000);
+    const mins = Math.floor((diffMs % 3600000) / 60000);
+    if (hrs > 0) return `resets in ${hrs}h ${mins}m`;
+    return `resets in ${mins}m`;
+  } catch {
+    return isoStr;
+  }
+}
+
+// ─── Deactivate ──────────────────────────────────────────────────────────────
+export function deactivate() {
+  if (quotaPollTimer) clearInterval(quotaPollTimer);
+}

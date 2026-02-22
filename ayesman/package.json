@@ -1,8 +1,8 @@
 {
   "name": "ayesman",
   "displayName": "AYesMan",
-  "description": "Companion extension to inject automation and quota data into Antigravity Webview",
-  "version": "0.0.1",
+  "description": "Auto-accept agent steps and display model quota for Antigravity",
+  "version": "0.1.0",
   "publisher": "ayesmen",
   "engines": {
     "vscode": "^1.90.0"
@@ -17,8 +17,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "ayesman.startObserver",
-        "title": "AYesMan: Start Observer"
+        "command": "ayesman.refreshQuota",
+        "title": "AYesMan: Refresh Quota"
       }
     ]
   },
