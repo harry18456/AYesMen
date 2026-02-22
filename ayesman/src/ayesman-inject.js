@@ -12,16 +12,15 @@
     
     console.log("[AYesMan] Content script injected successfully into Webview.");
 
-    // Utility to post messages back to Extension Host
-    const vscodeApi = typeof acquireVsCodeApi === 'function' ? acquireVsCodeApi() : null;
+    // Utility to post messages back to AYesMan Extension Host via HTTP
     function sendToExtension(type, payload) {
-        const msg = { source: 'ayesman', type, payload };
-        if (vscodeApi) {
-            vscodeApi.postMessage(msg);
-        } else {
-            // Fallback to parent postMessage (might be caught by Webview panel wrapper)
-            window.parent.postMessage(msg, '*');
-        }
+        // Send to a fixed local port run by AYesMan backend
+        const AYESMAN_PORT = window.__AYESMAN_PORT__ || 45642;
+        fetch(`http://127.0.0.1:${AYESMAN_PORT}/ayesman-event`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type, payload })
+        }).catch(e => console.error('[AYesMan] Warning: Failed to reach backend on port ' + AYESMAN_PORT));
     }
 
     // ==========================================

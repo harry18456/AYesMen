@@ -15,10 +15,10 @@
 
 ## 3. Extension Host Implementation (Backend)
 
-- [ ] 3.1 Investigate methods to inject the `ayesman-inject.js` script into the Antigravity `iframe` / Webview. (Options include evaluating VS Code UI APIs, CDP Debugging, or locating persistent script files on disk).
-- [ ] 3.2 Create a `vscode.StatusBarItem` in `extension.ts` aligned to the right.
-- [ ] 3.3 Setup a message listener to receive the quota updates from the Content Script.
-- [ ] 3.4 Update the Status Bar text and color dynamically based on the received quota (e.g., green for >50%, red for <10%).
+- [x] 3.1 Investigate methods to inject the `ayesman-inject.js` script into the Antigravity `iframe` / Webview. (Options include evaluating VS Code UI APIs, CDP Debugging, or locating persistent script files on disk).
+- [x] 3.2 Create a `vscode.StatusBarItem` in `extension.ts` aligned to the right.
+- [x] 3.3 Setup a message listener to receive the quota updates from the Content Script.
+- [x] 3.4 Update the Status Bar text and color dynamically based on the received quota (e.g., green for >50%, red for <10%).
 
 ## 4. Verification & Testing
 
