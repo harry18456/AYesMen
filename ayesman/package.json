@@ -4,10 +4,24 @@
   "description": "Auto-accept agent steps and display model quota for Antigravity",
   "version": "0.2.0",
   "publisher": "ayesmen",
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/harry18456/AYesMen"
+  },
+  "keywords": [
+    "ai",
+    "antigravity",
+    "auto-accept",
+    "quota",
+    "automation"
+  ],
   "engines": {
     "vscode": "^1.90.0"
   },
   "categories": [
+    "Visualization",
     "Other"
   ],
   "activationEvents": [
