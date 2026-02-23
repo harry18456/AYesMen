@@ -2,7 +2,7 @@
   "name": "ayesman",
   "displayName": "AYesMan",
   "description": "Antigravity YesMan, Auto-accept agent steps and display model quota for Antigravity",
-  "version": "1.0.0",
+  "version": "1.2.6",
   "publisher": "ayesmen",
   "license": "MIT",
   "icon": "icon.png",
@@ -29,6 +29,17 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
+    "configuration": {
+      "title": "AYesMan",
+      "properties": {
+        "ayesman.autoAccept": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable auto-accepting steps in Antigravity",
+          "scope": "application"
+        }
+      }
+    },
     "commands": [
       {
         "command": "ayesman.refreshQuota",
