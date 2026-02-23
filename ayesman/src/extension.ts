@@ -182,74 +182,77 @@ function updateAutoAcceptStatusBar() {
 
 // Try to accept the current pending step via direct gRPC call.
 //
-// Flow (confirmed from diagnose output):
-//   GetUserTrajectoryDescriptions {}          → currentTrajectoryId
-//   GetAllCascadeTrajectories {}              → summaries map (cascadeId → {trajectoryId, stepCount, ...})
-//   Match summary.trajectoryId === current    → cascadeId + stepCount
-//   GetCascadeTrajectorySteps {cascadeId, stepOffset: stepCount-10}  → last 10 steps
-//   Find last step with runCommand (not DONE) → accept via HandleCascadeUserInteraction
+// Root cause of v1 failure (confirmed from diagnose output):
+//   GetUserTrajectoryDescriptions returns workspace-level trajectoryId (e.g. "f8bedc06")
+//   but cascade summaries have their OWN internal trajectoryId ("c62f041f").
+//   These are different concepts — matching them always fails → early return → no accept.
+//
+// Fixed flow:
+//   GetAllCascadeTrajectories {}              → summaries map
+//   Sort non-idle by lastModifiedTime desc    → pick the most recently active cascade
+//   GetCascadeTrajectorySteps (last 10)       → find pending runCommand
+//   HandleCascadeUserInteraction              → confirm, using cascade's own trajectoryId
 async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
-  // Step 1: Get current trajectoryId
-  const descs = await callGrpc(server, "GetUserTrajectoryDescriptions", {});
-  const currentDesc = (descs?.trajectories ?? []).find((t: any) => t.current);
-  if (!currentDesc?.trajectoryId) return;
-  const currentTrajectoryId: string = currentDesc.trajectoryId;
-
-  // Step 2: Find cascadeId by matching trajectoryId in cascade summaries
   const allTrajs = await callGrpc(server, "GetAllCascadeTrajectories", {});
   const summaries: Record<string, any> = allTrajs?.trajectorySummaries ?? {};
 
-  let cascadeId: string | undefined;
-  let stepCount = 0;
-  for (const [cId, s] of Object.entries(summaries)) {
-    if ((s as any)?.trajectoryId === currentTrajectoryId) {
-      cascadeId = cId;
-      stepCount = (s as any)?.stepCount ?? 0;
-      break;
-    }
-  }
-  if (!cascadeId || stepCount === 0) return;
-
-  // Step 3: Get last 10 steps efficiently (avoid fetching all 800+ steps)
-  const offset = Math.max(0, stepCount - 10);
-  const stepsResult = await callGrpc(server, "GetCascadeTrajectorySteps", {
-    cascadeId,
-    stepOffset: offset,
-  });
-  const steps: any[] = stepsResult?.steps ?? [];
-
-  // Step 4: Find last pending runCommand step and accept it
-  for (let i = steps.length - 1; i >= 0; i--) {
-    const step = steps[i];
-    if (!step?.runCommand) continue;
-    // Skip already-completed steps
-    if (
-      step.status === "CORTEX_STEP_STATUS_DONE" ||
-      step.status === "CORTEX_STEP_STATUS_CANCELLED"
-    )
-      continue;
-
-    const runCmd = step.runCommand;
-    const proposedCmd: string =
-      runCmd.proposedCommandLine ?? runCmd.commandLine ?? "";
-    const absoluteIdx = offset + i;
-
-    await callGrpc(server, "HandleCascadeUserInteraction", {
+  // Build candidate list: prefer non-IDLE, then sort by lastModifiedTime descending
+  const candidates = Object.entries(summaries)
+    .map(([cascadeId, s]) => ({
       cascadeId,
-      interaction: {
-        trajectoryId: currentTrajectoryId,
-        stepIndex: absoluteIdx,
-        runCommand: {
-          confirm: true,
-          proposedCommandLine: proposedCmd,
-          submittedCommandLine: proposedCmd,
-        },
-      },
+      trajectoryId: (s as any)?.trajectoryId as string ?? "",
+      stepCount: (s as any)?.stepCount as number ?? 0,
+      idle: (s as any)?.status === "CASCADE_RUN_STATUS_IDLE",
+      lastModified: new Date((s as any)?.lastModifiedTime ?? 0),
+    }))
+    .sort((a, b) => {
+      // Non-idle first, then by most recently modified
+      if (a.idle !== b.idle) return a.idle ? 1 : -1;
+      return b.lastModified.getTime() - a.lastModified.getTime();
+    })
+    .slice(0, 3); // Check at most 3 candidates to limit gRPC calls
+
+  for (const { cascadeId, trajectoryId, stepCount } of candidates) {
+    if (stepCount === 0) continue;
+
+    const offset = Math.max(0, stepCount - 10);
+    const stepsResult = await callGrpc(server, "GetCascadeTrajectorySteps", {
+      cascadeId,
+      stepOffset: offset,
     });
-    console.log(
-      `[AYesMan] Auto-accepted step ${absoluteIdx}: ${proposedCmd.substring(0, 80)}`,
-    );
-    return;
+    const steps: any[] = stepsResult?.steps ?? [];
+
+    for (let i = steps.length - 1; i >= 0; i--) {
+      const step = steps[i];
+      if (!step?.runCommand) continue;
+      if (
+        step.status === "CORTEX_STEP_STATUS_DONE" ||
+        step.status === "CORTEX_STEP_STATUS_CANCELLED"
+      ) continue;
+
+      const runCmd = step.runCommand;
+      const proposedCmd: string =
+        runCmd.proposedCommandLine ?? runCmd.commandLine ?? "";
+      const absoluteIdx = offset + i;
+
+      // Use cascade's own trajectoryId (not user-level trajectory)
+      await callGrpc(server, "HandleCascadeUserInteraction", {
+        cascadeId,
+        interaction: {
+          trajectoryId,
+          stepIndex: absoluteIdx,
+          runCommand: {
+            confirm: true,
+            proposedCommandLine: proposedCmd,
+            submittedCommandLine: proposedCmd,
+          },
+        },
+      });
+      console.log(
+        `[AYesMan] Auto-accepted step ${absoluteIdx}: ${proposedCmd.substring(0, 80)}`,
+      );
+      return;
+    }
   }
 }
 

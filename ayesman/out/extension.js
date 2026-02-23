@@ -165,54 +165,72 @@ function updateAutoAcceptStatusBar() {
     }
 }
 // Try to accept the current pending step via direct gRPC call.
-// This bypasses the VS Code command registry (which does NOT have
-// antigravity.agent.acceptAgentStep etc.) and calls HandleCascadeUserInteraction
-// directly on the language server, the same way the workbench React code does it.
+//
+// Root cause of v1 failure (confirmed from diagnose output):
+//   GetUserTrajectoryDescriptions returns workspace-level trajectoryId (e.g. "f8bedc06")
+//   but cascade summaries have their OWN internal trajectoryId ("c62f041f").
+//   These are different concepts — matching them always fails → early return → no accept.
+//
+// Fixed flow:
+//   GetAllCascadeTrajectories {}              → summaries map
+//   Sort non-idle by lastModifiedTime desc    → pick the most recently active cascade
+//   GetCascadeTrajectorySteps (last 10)       → find pending runCommand
+//   HandleCascadeUserInteraction              → confirm, using cascade's own trajectoryId
 async function tryAutoAcceptStep(server) {
-    // Step 1: Get current trajectory ID
-    const descs = await callGrpc(server, "GetUserTrajectoryDescriptions", {});
-    const currentDesc = descs?.trajectories?.find((t) => t.current);
-    if (!currentDesc?.trajectoryId)
-        return;
-    const trajectoryId = currentDesc.trajectoryId;
-    // Step 2: Get full trajectory (includes cascadeId + steps)
-    const result = await callGrpc(server, "GetUserTrajectory", { trajectoryId });
-    // Response may be { trajectory: {...} } or the trajectory object directly
-    const traj = result?.trajectory ?? result;
-    const cascadeId = traj?.cascadeId;
-    const steps = traj?.steps ?? [];
-    if (!cascadeId || steps.length === 0) {
-        console.log(`[AYesMan] debug: trajectoryId=${trajectoryId} cascadeId=${cascadeId} steps=${steps.length} resultKeys=${Object.keys(result ?? {}).join(",")}`);
-        return;
-    }
-    // Step 3: Check the last step — if it's a runCommand awaiting confirmation, accept it.
-    // The workbench React code ($Sd function) reads the same trajectory state and calls
-    // HandleCascadeUserInteraction when the user presses Alt+Enter.
-    const lastIdx = steps.length - 1;
-    const lastStep = steps[lastIdx];
-    const runCmd = lastStep?.runCommand;
-    if (!runCmd) {
-        // Log the last step type for debugging
-        const stepKeys = Object.keys(lastStep ?? {}).join(",");
-        console.log(`[AYesMan] debug: last step keys=${stepKeys}`);
-        return;
-    }
-    const proposedCommandLine = runCmd.proposedCommandLine ?? runCmd.commandLine ?? "";
-    // Call HandleCascadeUserInteraction — if the step is already processed the
-    // server will reject it (we catch that silently). If pending, it gets accepted.
-    await callGrpc(server, "HandleCascadeUserInteraction", {
+    const allTrajs = await callGrpc(server, "GetAllCascadeTrajectories", {});
+    const summaries = allTrajs?.trajectorySummaries ?? {};
+    // Build candidate list: prefer non-IDLE, then sort by lastModifiedTime descending
+    const candidates = Object.entries(summaries)
+        .map(([cascadeId, s]) => ({
         cascadeId,
-        interaction: {
-            trajectoryId,
-            stepIndex: lastIdx,
-            runCommand: {
-                confirm: true,
-                proposedCommandLine,
-                submittedCommandLine: proposedCommandLine,
-            },
-        },
-    });
-    console.log(`[AYesMan] Auto-accepted step ${lastIdx}: ${proposedCommandLine.substring(0, 80)}`);
+        trajectoryId: s?.trajectoryId ?? "",
+        stepCount: s?.stepCount ?? 0,
+        idle: s?.status === "CASCADE_RUN_STATUS_IDLE",
+        lastModified: new Date(s?.lastModifiedTime ?? 0),
+    }))
+        .sort((a, b) => {
+        // Non-idle first, then by most recently modified
+        if (a.idle !== b.idle)
+            return a.idle ? 1 : -1;
+        return b.lastModified.getTime() - a.lastModified.getTime();
+    })
+        .slice(0, 3); // Check at most 3 candidates to limit gRPC calls
+    for (const { cascadeId, trajectoryId, stepCount } of candidates) {
+        if (stepCount === 0)
+            continue;
+        const offset = Math.max(0, stepCount - 10);
+        const stepsResult = await callGrpc(server, "GetCascadeTrajectorySteps", {
+            cascadeId,
+            stepOffset: offset,
+        });
+        const steps = stepsResult?.steps ?? [];
+        for (let i = steps.length - 1; i >= 0; i--) {
+            const step = steps[i];
+            if (!step?.runCommand)
+                continue;
+            if (step.status === "CORTEX_STEP_STATUS_DONE" ||
+                step.status === "CORTEX_STEP_STATUS_CANCELLED")
+                continue;
+            const runCmd = step.runCommand;
+            const proposedCmd = runCmd.proposedCommandLine ?? runCmd.commandLine ?? "";
+            const absoluteIdx = offset + i;
+            // Use cascade's own trajectoryId (not user-level trajectory)
+            await callGrpc(server, "HandleCascadeUserInteraction", {
+                cascadeId,
+                interaction: {
+                    trajectoryId,
+                    stepIndex: absoluteIdx,
+                    runCommand: {
+                        confirm: true,
+                        proposedCommandLine: proposedCmd,
+                        submittedCommandLine: proposedCmd,
+                    },
+                },
+            });
+            console.log(`[AYesMan] Auto-accepted step ${absoluteIdx}: ${proposedCmd.substring(0, 80)}`);
+            return;
+        }
+    }
 }
 let lastAutoAcceptError = "";
 function startAutoAcceptLoop() {
