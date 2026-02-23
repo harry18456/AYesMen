@@ -1,27 +1,27 @@
 ## ADDED Requirements
 
 ### Requirement: Auto-accept polling loop
-Extension SHALL poll Antigravity accept commands every 500ms to automatically accept any pending agent steps.
+Extension SHALL poll for pending agent steps every 500ms and automatically confirm them via gRPC.
 
-Polled commands (in order):
-1. `antigravity.agent.acceptAgentStep`
-2. `antigravity.terminalCommand.accept`
-3. `antigravity.command.accept`
-4. `antigravity.interactiveCascade.acceptSuggestedAction`
+Implementation uses direct gRPC calls to the Antigravity language server:
+1. `GetAllCascadeTrajectories` → find cascades belonging to current VS Code workspace
+2. Sort by `lastModifiedTime` descending, prefer non-IDLE status, take top 3
+3. `GetCascadeTrajectorySteps` (last 10 steps) → find pending `runCommand` step
+4. `HandleCascadeUserInteraction { confirm: true }` → accept the step
 
-Each command call SHALL be wrapped in try/catch; failures are silently ignored.
-
-#### Scenario: Auto-accept triggers file edit step
-- **WHEN** Antigravity agent proposes a file edit and polling loop runs
-- **THEN** `antigravity.agent.acceptAgentStep` executes and the step is accepted without user interaction
+Each poll is wrapped in try/catch; errors are deduplicated to avoid log spam.
 
 #### Scenario: Auto-accept triggers terminal command
 - **WHEN** Antigravity agent proposes a terminal command and polling loop runs
-- **THEN** `antigravity.terminalCommand.accept` executes and the command runs automatically
+- **THEN** `HandleCascadeUserInteraction` is called with `confirm: true` and the command runs automatically
 
 #### Scenario: No pending step
 - **WHEN** polling loop runs but there are no pending agent steps
-- **THEN** all command calls fail silently (caught by try/catch) and no error is surfaced
+- **THEN** gRPC calls complete with no-op result and no error is surfaced
+
+#### Scenario: Multiple projects open
+- **WHEN** two Antigravity instances are open for different projects
+- **THEN** each extension instance only accepts steps belonging to its own VS Code workspace
 
 ### Requirement: Toggle ON/OFF
 Extension SHALL provide `ayesman.toggleAutoAccept` command to enable or disable auto-accept.

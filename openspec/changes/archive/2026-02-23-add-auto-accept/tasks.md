@@ -23,8 +23,8 @@
 - [x] 3.6 commit `feat(ayesman): implement auto-accept via gRPC HandleCascadeUserInteraction`（3b606c5）
 
 **以下為手動驗證（需在 Antigravity IDE 中進行）：**
-- [ ] 3.2 在 Antigravity IDE 中 Reload Window，確認兩個 status bar items 都顯示
-- [ ] 3.3 觸發一個 agent step，確認自動被 accept（不需手動按鍵）
-- [ ] 3.4 點擊 auto-accept status bar item，確認切換至 OFF 狀態
-- [ ] 3.5 再次點擊，確認回到 ON 狀態
+- [x] 3.2 在 Antigravity IDE 中 Reload Window，確認兩個 status bar items 都顯示
+- [x] 3.3 觸發一個 agent step，確認自動被 accept（不需手動按鍵）
+- [x] 3.4 點擊 auto-accept status bar item，確認切換至 OFF 狀態
+- [x] 3.5 再次點擊，確認回到 ON 狀態
 
