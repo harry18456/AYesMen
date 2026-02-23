@@ -273,51 +273,96 @@ function startAutoAcceptLoop() {
         }
     }, AUTO_ACCEPT_INTERVAL_MS);
 }
-// ─── Language Server Discovery ───────────────────────────────────────────────
+// Find language_server process and return PID + full command line.
+// Uses platform-specific commands:
+//   Windows → PowerShell Get-CimInstance
+//   macOS/Linux → ps aux + grep
+function findLanguageServerProcess() {
+    try {
+        if (process.platform === "win32") {
+            const out = (0, child_process_1.execSync)('powershell -Command "Get-CimInstance Win32_Process -Filter \\"name LIKE \'language_server%\'\\" | Select-Object -First 1 | ForEach-Object { Write-Host $_.ProcessId; Write-Host $_.CommandLine }"', { encoding: "utf-8", timeout: 10000 }).trim();
+            const lines = out.split("\n").map((l) => l.trim());
+            const pid = parseInt(lines[0], 10);
+            const cmdline = lines.slice(1).join(" ");
+            if (!pid || !cmdline)
+                return undefined;
+            return { pid, cmdline };
+        }
+        else {
+            // macOS / Linux: ps aux lists all processes with full command line
+            const out = (0, child_process_1.execSync)("ps aux | grep 'language_server' | grep -v grep | head -1", { encoding: "utf-8", timeout: 10000 }).trim();
+            if (!out)
+                return undefined;
+            // ps aux columns: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND...
+            const parts = out.trim().split(/\s+/);
+            const pid = parseInt(parts[1], 10);
+            const cmdline = parts.slice(10).join(" ");
+            if (!pid || !cmdline)
+                return undefined;
+            return { pid, cmdline };
+        }
+    }
+    catch {
+        return undefined;
+    }
+}
+// Find ports the language server process is listening on.
+// Windows → PowerShell Get-NetTCPConnection
+// macOS/Linux → lsof -i -n -P -p <pid>
+function findListeningPorts(pid) {
+    try {
+        if (process.platform === "win32") {
+            const out = (0, child_process_1.execSync)(`powershell -Command "Get-NetTCPConnection -OwningProcess ${pid} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort"`, { encoding: "utf-8", timeout: 10000 }).trim();
+            return out.split(/\s+/).map(Number).filter((p) => !isNaN(p) && p > 0);
+        }
+        else {
+            // lsof -i: all internet connections, -n: no DNS, -P: no port names
+            const out = (0, child_process_1.execSync)(`lsof -i -n -P -p ${pid} 2>/dev/null | grep LISTEN`, { encoding: "utf-8", timeout: 10000 }).trim();
+            const ports = [];
+            for (const line of out.split("\n")) {
+                const match = line.match(/:(\d+)\s+\(LISTEN\)/);
+                if (match)
+                    ports.push(parseInt(match[1], 10));
+            }
+            return ports;
+        }
+    }
+    catch {
+        return [];
+    }
+}
 async function discoverServer() {
     if (cachedServerInfo)
         return cachedServerInfo;
-    try {
-        // Step 1: Extract CSRF token and PID from language server process args
-        const cmdlineOutput = (0, child_process_1.execSync)('powershell -Command "Get-CimInstance Win32_Process -Filter \\"name = \'language_server_windows_x64.exe\'\\" | Select-Object -First 1 | ForEach-Object { Write-Host $_.ProcessId; Write-Host $_.CommandLine }"', { encoding: "utf-8", timeout: 10000 }).trim();
-        const lines = cmdlineOutput.split("\n").map((l) => l.trim());
-        const pid = parseInt(lines[0], 10);
-        const cmdline = lines.slice(1).join(" ");
-        const csrfMatch = cmdline.match(/--csrf_token\s+(\S+)/);
-        if (!csrfMatch || !pid) {
-            console.error("[AYesMan] Could not extract CSRF/PID from language server");
-            return undefined;
-        }
-        const csrfToken = csrfMatch[1];
-        // Step 2: Get listening ports for the process
-        const portsOutput = (0, child_process_1.execSync)(`powershell -Command "Get-NetTCPConnection -OwningProcess ${pid} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalPort"`, { encoding: "utf-8", timeout: 10000 }).trim();
-        const ports = portsOutput
-            .split(/\s+/)
-            .map((p) => parseInt(p, 10))
-            .filter((p) => !isNaN(p));
-        if (ports.length === 0) {
-            console.error("[AYesMan] No listening ports found for language server");
-            return undefined;
-        }
-        console.log(`[AYesMan] LS PID=${pid}, CSRF=${csrfToken.substring(0, 8)}..., ports=${ports.join(",")}`);
-        // Step 3: Probe ports to find the gRPC API (try HTTPS first, then HTTP)
-        for (const port of ports) {
-            for (const useHttps of [true, false]) {
-                const ok = await probePort(port, csrfToken, useHttps);
-                if (ok) {
-                    cachedServerInfo = { port, csrfToken, useHttps };
-                    console.log(`[AYesMan] Found gRPC at ${useHttps ? "https" : "http"}://127.0.0.1:${port}`);
-                    return cachedServerInfo;
-                }
+    const proc = findLanguageServerProcess();
+    if (!proc) {
+        console.error("[AYesMan] Language server process not found");
+        return undefined;
+    }
+    const csrfMatch = proc.cmdline.match(/--csrf_token\s+(\S+)/);
+    if (!csrfMatch) {
+        console.error("[AYesMan] Could not extract CSRF token from process args");
+        return undefined;
+    }
+    const csrfToken = csrfMatch[1];
+    const ports = findListeningPorts(proc.pid);
+    if (ports.length === 0) {
+        console.error("[AYesMan] No listening ports found for language server");
+        return undefined;
+    }
+    console.log(`[AYesMan] LS PID=${proc.pid}, CSRF=${csrfToken.substring(0, 8)}..., ports=${ports.join(",")}`);
+    for (const port of ports) {
+        for (const useHttps of [true, false]) {
+            const ok = await probePort(port, csrfToken, useHttps);
+            if (ok) {
+                cachedServerInfo = { port, csrfToken, useHttps };
+                console.log(`[AYesMan] Found gRPC at ${useHttps ? "https" : "http"}://127.0.0.1:${port}`);
+                return cachedServerInfo;
             }
         }
-        console.error("[AYesMan] Could not find working gRPC port");
-        return undefined;
     }
-    catch (err) {
-        console.error("[AYesMan] Server discovery failed:", err.message);
-        return undefined;
-    }
+    console.error("[AYesMan] Could not find working gRPC port");
+    return undefined;
 }
 function probePort(port, csrfToken, useHttps) {
     return new Promise((resolve) => {
