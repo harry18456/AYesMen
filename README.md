@@ -36,17 +36,30 @@ Antigravity 內建的 UI 隱藏了具體的模型剩餘額度百分比，AYesMan
 
 ---
 
-## 🚧 關於 Auto-Accept (自動同意命令) 功能
+## ✅ Auto-Accept (自動同意命令) 功能
 
-**目前狀態：暫停開發 (Blocked)**
+**目前狀態：已實作並驗證**
 
-本專案最初的目標之一是「自動點擊 Agent 的執行許可按鈕」，以實現真正的全自動工作流。經過廣泛的研究，目前面臨以下技術瓶頸：
+每 500ms 自動確認 Antigravity Agent 提出的 terminal 指令，實現真正的全自動工作流。透過直接呼叫 Antigravity 語言伺服器的私有 gRPC API 實現，無需模擬按鍵或修改 Antigravity 本身。
 
-- **無法透過內建 Command 觸發**：`executeCommand('antigravity.agent.acceptAgentStep')` 背後依賴內部 gRPC 呼叫，必須夾帶動態生成的 `cascade_id`，外部無法取得。
-- **無法進行 Webview 注入**：Antigravity 的 Chat 面板是原生 Workbench 元件，而非標準 VS Code Webview，因此無法透過傳統的 DOM 注入方式（如 MutationObserver）自動點擊按鈕。
-- **純模擬按鍵的副作用**：雖然能模擬按下 `Alt+Enter`，但缺乏精準的 Context 判斷會嚴重干擾開發者的正常打字與操作。
+**運作流程：**
 
-詳細的失敗嘗試與未來的 5 個潛在研究方向，請參考專案內的 `temp_auto_run_plan.md`。
+1. 從 `language_server_windows_x64.exe` 進程提取 CSRF token 與監聽 port
+2. 每 500ms 呼叫 `GetAllCascadeTrajectories`，篩選出屬於當前 VS Code workspace 的對話
+3. 呼叫 `GetCascadeTrajectorySteps` 取得最後 10 步，找出待確認的 `runCommand` step
+4. 呼叫 `HandleCascadeUserInteraction { confirm: true }` 自動確認
+
+**特性：**
+
+- 點擊 Status Bar 或執行 `AYesMan: Toggle Auto-Accept` 可隨時暫停/恢復
+- 同時開啟多個專案時，每個視窗只處理自己 workspace 的 Agent 對話
+- 啟動時預設為 ON
+
+**研究過程中排除的方案：**
+
+- `executeCommand('antigravity.agent.acceptAgentStep')` — 需要內部 `cascade_id`，外部無法取得
+- Webview DOM 注入 — Chat 面板是原生 Workbench 元件，非標準 Webview
+- 鍵盤模擬 `Alt+Enter` — 無法精準判斷時機，干擾正常開發
 
 ---
 
