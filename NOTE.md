@@ -10,20 +10,30 @@ An unofficial VS Code extension for Google Antigravity that adds a real-time quo
 
 ## Features
 
+### ⚡ Unified Status Bar
+
+A single status bar item combines both features.
+
+- **Active**: `$(debug-start) YesMan` — auto-accept is running
+- **Paused**: `$(debug-pause) YesMan` — auto-accept is off (orange background)
+- **Click**: toggle auto-accept on/off
+- **Hover**: quota breakdown for all models with percentages and reset timers
+- **Background color**: yellow (<40%) or red (<20%) when quota is critically low (auto-accept ON only)
+
 ### 📊 Quota Dashboard
 
-Antigravity's built-in UI hides model quota percentages. AYesMan surfaces them in the status bar.
+Antigravity's built-in UI hides model quota percentages. AYesMan surfaces them on hover.
 
-- **Status bar**: Always shows the model with the lowest remaining quota (e.g. `⚠ Gemini 3 Pro: 20%`)
-- **Color coding**: 🟢 ≥80% · 🟡 40–79% · 🔴 <40% (background changes)
-- **Hover tooltip**: All models with percentages, reset times, and plan credits (Prompt + Flow)
-- **Auto-refresh**: Every 2 minutes, or click the status bar item to refresh immediately
+- **Hover tooltip**: All models sorted alphabetically with 🟢/🟡/🔴 indicator, percentage, and reset countdown
+- **Auto-refresh**: Every 2 minutes in the background
+- **Manual refresh**: `Ctrl+Shift+P` → `AYesMan: Refresh Quota`
 
 ### ✅ Auto-Accept
 
 Automatically confirms terminal commands proposed by the Antigravity Agent — no manual clicking required.
 
-- **Toggle**: Click the status bar item or run `AYesMan: Toggle Auto-Accept` to pause/resume
+- **Toggle**: Click the `YesMan` status bar item or run `AYesMan: Toggle Auto-Accept` to pause/resume
+- **No filter restrictions**: Unlike Antigravity's built-in Auto Run, accepts all commands including those with `|`, `;`, or blacklisted keywords
 - **Multi-project safe**: Each extension instance only accepts steps from its own VS Code workspace
 - **Default**: ON at activation
 
