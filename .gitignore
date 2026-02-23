@@ -2,3 +2,4 @@
 openspec/.vector-search.db
 .claude/settings.local.json
 ayesman/out/
+ayesman/*.vsix
