@@ -180,24 +180,48 @@ function updateAutoAcceptStatusBar() {
   }
 }
 
+// Normalize "file:///d:/foo" or "file:///d%3A/foo" → "d:/foo" (lowercase, forward slashes)
+function normalizeFileUri(uri: string): string {
+  return decodeURIComponent(uri.replace(/^file:\/\/\//, ""))
+    .toLowerCase()
+    .replace(/\\/g, "/");
+}
+
+// Current workspace paths (e.g. ["d:/side_project/ayesman"])
+function currentWorkspacePaths(): Set<string> {
+  return new Set(
+    (vscode.workspace.workspaceFolders ?? []).map((f) =>
+      f.uri.fsPath.toLowerCase().replace(/\\/g, "/"),
+    ),
+  );
+}
+
 // Try to accept the current pending step via direct gRPC call.
 //
-// Root cause of v1 failure (confirmed from diagnose output):
-//   GetUserTrajectoryDescriptions returns workspace-level trajectoryId (e.g. "f8bedc06")
-//   but cascade summaries have their OWN internal trajectoryId ("c62f041f").
-//   These are different concepts — matching them always fails → early return → no accept.
-//
-// Fixed flow:
-//   GetAllCascadeTrajectories {}              → summaries map
-//   Sort non-idle by lastModifiedTime desc    → pick the most recently active cascade
-//   GetCascadeTrajectorySteps (last 10)       → find pending runCommand
-//   HandleCascadeUserInteraction              → confirm, using cascade's own trajectoryId
+// Flow:
+//   GetAllCascadeTrajectories {}
+//     → filter by current VS Code workspace (summary.workspaces[].workspaceFolderAbsoluteUri)
+//     → prefer non-IDLE, sort by lastModifiedTime desc, take top 3
+//   GetCascadeTrajectorySteps (last 10 steps)
+//     → find pending runCommand (not DONE/CANCELLED)
+//   HandleCascadeUserInteraction { confirm: true }
+//     → using cascade's own trajectoryId (NOT user-level trajectory)
 async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
   const allTrajs = await callGrpc(server, "GetAllCascadeTrajectories", {});
   const summaries: Record<string, any> = allTrajs?.trajectorySummaries ?? {};
 
-  // Build candidate list: prefer non-IDLE, then sort by lastModifiedTime descending
+  const wsPaths = currentWorkspacePaths();
+
+  // Build candidate list filtered to this workspace, prefer non-IDLE, newest first
   const candidates = Object.entries(summaries)
+    .filter(([, s]) => {
+      if (wsPaths.size === 0) return true; // no workspace open → accept all
+      const cascadeWorkspaces: any[] = (s as any)?.workspaces ?? [];
+      return cascadeWorkspaces.some((w) => {
+        const p = normalizeFileUri(w?.workspaceFolderAbsoluteUri ?? "");
+        return wsPaths.has(p);
+      });
+    })
     .map(([cascadeId, s]) => ({
       cascadeId,
       trajectoryId: (s as any)?.trajectoryId as string ?? "",
@@ -206,11 +230,10 @@ async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
       lastModified: new Date((s as any)?.lastModifiedTime ?? 0),
     }))
     .sort((a, b) => {
-      // Non-idle first, then by most recently modified
       if (a.idle !== b.idle) return a.idle ? 1 : -1;
       return b.lastModified.getTime() - a.lastModified.getTime();
     })
-    .slice(0, 3); // Check at most 3 candidates to limit gRPC calls
+    .slice(0, 3);
 
   for (const { cascadeId, trajectoryId, stepCount } of candidates) {
     if (stepCount === 0) continue;
