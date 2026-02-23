@@ -33,10 +33,8 @@ Stop clicking "Accept" on every terminal command the Agent proposes. AYesMan doe
 
 ## Requirements
 
-- Google Antigravity IDE (Windows)
+- Google Antigravity IDE
 - The Antigravity language server must be running (it starts automatically with the IDE)
-
-> **Note**: Currently Windows-only. macOS/Linux support is not available at this time.
 
 ---
 
@@ -61,7 +59,6 @@ AYesMan communicates with the Antigravity language server running locally on you
 
 ## Known Limitations
 
-- Windows only (relies on PowerShell for process discovery)
 - Requires Antigravity to be running before the extension activates
 - Since this extension uses Antigravity's internal APIs, updates to Antigravity may occasionally break functionality until AYesMan is updated
 

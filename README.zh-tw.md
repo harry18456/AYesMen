@@ -31,10 +31,8 @@ Antigravity 的 UI 不會顯示各模型的剩餘配額百分比。AYesMan 幫�
 
 ## 系統需求
 
-- Google Antigravity IDE（Windows）
+- Google Antigravity IDE
 - Antigravity 語言伺服器需在執行中（隨 IDE 自動啟動）
-
-> **注意**：目前僅支援 Windows，暫不支援 macOS / Linux。
 
 ---
 
@@ -59,7 +57,6 @@ AYesMan 與在你電腦上本機執行的 Antigravity 語言伺服器溝通。�
 
 ## 已知限制
 
-- 僅支援 Windows（依賴 PowerShell 進行進程探測）
 - 需要 Antigravity 在擴充套件啟動前已執行
 - 本擴充套件使用 Antigravity 的內部 API，Antigravity 更新後偶爾可能造成功能暫時失效，需等待 AYesMan 更新
 
