@@ -19,6 +19,14 @@
       {
         "command": "ayesman.refreshQuota",
         "title": "AYesMan: Refresh Quota"
+      },
+      {
+        "command": "ayesman.toggleAutoAccept",
+        "title": "AYesMan: Toggle Auto-Accept"
+      },
+      {
+        "command": "ayesman.diagnose",
+        "title": "AYesMan: Diagnose Auto-Accept"
       }
     ]
   },

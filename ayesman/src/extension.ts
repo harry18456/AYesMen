@@ -25,20 +25,58 @@ interface ServerInfo {
   useHttps: boolean;
 }
 
-// ─── State ───────────────────────────────────────────────────────────────────
+// ─── Constants ───────────────────────────────────────────────────────────────
 const QUOTA_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
+const AUTO_ACCEPT_INTERVAL_MS = 500;
 
+// ─── Quota State ─────────────────────────────────────────────────────────────
 let quotaStatusBar: vscode.StatusBarItem;
 let quotaPollTimer: ReturnType<typeof setInterval> | undefined;
 let latestQuota: QuotaEntry[] = [];
 let latestCredits: CreditsInfo | undefined;
 let cachedServerInfo: ServerInfo | undefined;
 
+// ─── Auto-Accept State ────────────────────────────────────────────────────────
+let autoAcceptEnabled = true;
+let autoAcceptStatusBar: vscode.StatusBarItem;
+let autoAcceptTimer: ReturnType<typeof setInterval> | undefined;
+
 // ─── Activate ────────────────────────────────────────────────────────────────
 export function activate(context: vscode.ExtensionContext) {
   console.log("[AYesMan] Extension Activated.");
 
-  // ── Status Bar: Single Quota Item ──
+  // ── Auto-Accept Status Bar ──
+  autoAcceptStatusBar = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    201,
+  );
+  autoAcceptStatusBar.command = "ayesman.toggleAutoAccept";
+  context.subscriptions.push(autoAcceptStatusBar);
+  updateAutoAcceptStatusBar();
+  autoAcceptStatusBar.show();
+
+  // ── Auto-Accept Toggle Command ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ayesman.toggleAutoAccept", () => {
+      autoAcceptEnabled = !autoAcceptEnabled;
+      updateAutoAcceptStatusBar();
+      vscode.window.showInformationMessage(
+        autoAcceptEnabled
+          ? "[AYesMan] Auto-Accept: ON ✅"
+          : "[AYesMan] Auto-Accept: OFF 🛑",
+      );
+    }),
+  );
+
+  // ── Start Auto-Accept Loop ──
+  startAutoAcceptLoop();
+  context.subscriptions.push({
+    dispose: () => {
+      if (autoAcceptTimer) clearInterval(autoAcceptTimer);
+    },
+  });
+
+  // ── Quota Status Bar ──
   quotaStatusBar = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     200,
@@ -49,11 +87,67 @@ export function activate(context: vscode.ExtensionContext) {
   quotaStatusBar.show();
   context.subscriptions.push(quotaStatusBar);
 
-  // ── Commands ──
+  // ── Quota Refresh Command ──
   context.subscriptions.push(
     vscode.commands.registerCommand("ayesman.refreshQuota", () =>
       fetchQuota(true),
     ),
+  );
+
+  // ── Diagnose Command ──
+  context.subscriptions.push(
+    vscode.commands.registerCommand("ayesman.diagnose", async () => {
+      const server = cachedServerInfo;
+      if (!server) {
+        vscode.window.showWarningMessage("[AYesMan] No server cached yet. Wait 10s after reload.");
+        return;
+      }
+      try {
+        // 1) GetUserTrajectoryDescriptions - log full response including trajectoryScope
+        const descs = await callGrpc(server, "GetUserTrajectoryDescriptions", {});
+        const current = (descs?.trajectories ?? []).find((t: any) => t.current);
+        console.log("[AYesMan] diagnose GetUserTrajectoryDescriptions:", JSON.stringify(descs).substring(0, 2000));
+
+        // 2) GetAllCascadeTrajectories - map keys are likely cascadeIds
+        const allTrajs = await callGrpc(server, "GetAllCascadeTrajectories", {});
+        const summaries = allTrajs?.trajectorySummaries ?? {};
+        const cascadeIds = Object.keys(summaries);
+        console.log("[AYesMan] diagnose GetAllCascadeTrajectories cascadeIds:", cascadeIds.join(","));
+        if (cascadeIds.length > 0) {
+          // Log the value structure of the first summary to understand what fields it has
+          const firstSummary = summaries[cascadeIds[0]];
+          console.log("[AYesMan] diagnose summary[0] keys:", Object.keys(firstSummary ?? {}).join(","));
+          console.log("[AYesMan] diagnose summary[0]:", JSON.stringify(firstSummary).substring(0, 500));
+        }
+
+        // 3) GetCascadeTrajectorySteps for the last cascadeId
+        if (cascadeIds.length > 0) {
+          const lastCascadeId = cascadeIds[cascadeIds.length - 1];
+          try {
+            const stepsResult = await callGrpc(server, "GetCascadeTrajectorySteps", {
+              cascadeId: lastCascadeId,
+              stepOffset: 0,
+            });
+            const steps: any[] = stepsResult?.steps ?? [];
+            console.log(`[AYesMan] diagnose GetCascadeTrajectorySteps cascadeId=${lastCascadeId} steps=${steps.length}`);
+            if (steps.length > 0) {
+              const lastStep = steps[steps.length - 1];
+              console.log("[AYesMan] diagnose lastStep keys:", Object.keys(lastStep ?? {}).join(","));
+              console.log("[AYesMan] diagnose lastStep:", JSON.stringify(lastStep).substring(0, 500));
+            }
+          } catch (e: any) {
+            console.log(`[AYesMan] diagnose GetCascadeTrajectorySteps error: ${e.message}`);
+          }
+        }
+
+        vscode.window.showInformationMessage(
+          `[AYesMan] diagnose: ${descs?.trajectories?.length ?? 0} trajectories, current=${current?.trajectoryId?.substring(0,8) ?? "none"}, ${cascadeIds.length} cascades. Check console.`,
+        );
+      } catch (err: any) {
+        console.log(`[AYesMan] diagnose error: ${err.message}`);
+        vscode.window.showErrorMessage(`[AYesMan] diagnose error: ${err.message}`);
+      }
+    }),
   );
 
   // ── Start Quota Polling ──
@@ -65,7 +159,121 @@ export function activate(context: vscode.ExtensionContext) {
     },
   });
 
-  console.log("[AYesMan] Quota Dashboard ready.");
+  console.log("[AYesMan] Ready. Auto-Accept: ON, Quota Dashboard: polling.");
+}
+
+// ─── Auto-Accept Logic ────────────────────────────────────────────────────────
+function updateAutoAcceptStatusBar() {
+  if (!autoAcceptStatusBar) return;
+  if (autoAcceptEnabled) {
+    autoAcceptStatusBar.text = "✅ Auto-Accept: ON";
+    autoAcceptStatusBar.tooltip =
+      "AYesMan Auto-Accept is active (click to pause)";
+    autoAcceptStatusBar.backgroundColor = undefined;
+  } else {
+    autoAcceptStatusBar.text = "🛑 Auto-Accept: OFF";
+    autoAcceptStatusBar.tooltip =
+      "AYesMan Auto-Accept is paused (click to resume)";
+    autoAcceptStatusBar.backgroundColor = new vscode.ThemeColor(
+      "statusBarItem.warningBackground",
+    );
+  }
+}
+
+// Try to accept the current pending step via direct gRPC call.
+//
+// Flow (confirmed from diagnose output):
+//   GetUserTrajectoryDescriptions {}          → currentTrajectoryId
+//   GetAllCascadeTrajectories {}              → summaries map (cascadeId → {trajectoryId, stepCount, ...})
+//   Match summary.trajectoryId === current    → cascadeId + stepCount
+//   GetCascadeTrajectorySteps {cascadeId, stepOffset: stepCount-10}  → last 10 steps
+//   Find last step with runCommand (not DONE) → accept via HandleCascadeUserInteraction
+async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
+  // Step 1: Get current trajectoryId
+  const descs = await callGrpc(server, "GetUserTrajectoryDescriptions", {});
+  const currentDesc = (descs?.trajectories ?? []).find((t: any) => t.current);
+  if (!currentDesc?.trajectoryId) return;
+  const currentTrajectoryId: string = currentDesc.trajectoryId;
+
+  // Step 2: Find cascadeId by matching trajectoryId in cascade summaries
+  const allTrajs = await callGrpc(server, "GetAllCascadeTrajectories", {});
+  const summaries: Record<string, any> = allTrajs?.trajectorySummaries ?? {};
+
+  let cascadeId: string | undefined;
+  let stepCount = 0;
+  for (const [cId, s] of Object.entries(summaries)) {
+    if ((s as any)?.trajectoryId === currentTrajectoryId) {
+      cascadeId = cId;
+      stepCount = (s as any)?.stepCount ?? 0;
+      break;
+    }
+  }
+  if (!cascadeId || stepCount === 0) return;
+
+  // Step 3: Get last 10 steps efficiently (avoid fetching all 800+ steps)
+  const offset = Math.max(0, stepCount - 10);
+  const stepsResult = await callGrpc(server, "GetCascadeTrajectorySteps", {
+    cascadeId,
+    stepOffset: offset,
+  });
+  const steps: any[] = stepsResult?.steps ?? [];
+
+  // Step 4: Find last pending runCommand step and accept it
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const step = steps[i];
+    if (!step?.runCommand) continue;
+    // Skip already-completed steps
+    if (
+      step.status === "CORTEX_STEP_STATUS_DONE" ||
+      step.status === "CORTEX_STEP_STATUS_CANCELLED"
+    )
+      continue;
+
+    const runCmd = step.runCommand;
+    const proposedCmd: string =
+      runCmd.proposedCommandLine ?? runCmd.commandLine ?? "";
+    const absoluteIdx = offset + i;
+
+    await callGrpc(server, "HandleCascadeUserInteraction", {
+      cascadeId,
+      interaction: {
+        trajectoryId: currentTrajectoryId,
+        stepIndex: absoluteIdx,
+        runCommand: {
+          confirm: true,
+          proposedCommandLine: proposedCmd,
+          submittedCommandLine: proposedCmd,
+        },
+      },
+    });
+    console.log(
+      `[AYesMan] Auto-accepted step ${absoluteIdx}: ${proposedCmd.substring(0, 80)}`,
+    );
+    return;
+  }
+}
+
+let lastAutoAcceptError = "";
+
+function startAutoAcceptLoop() {
+  autoAcceptTimer = setInterval(async () => {
+    if (!autoAcceptEnabled) return;
+    // IMPORTANT: Use cached server info directly — never call discoverServer() here.
+    // discoverServer() uses execSync (blocking PowerShell) which freezes the Extension
+    // Host thread and causes "unresponsive" errors. Server discovery happens in
+    // fetchQuota() which runs every 2 minutes and properly caches the result.
+    if (!cachedServerInfo) return;
+    try {
+      await tryAutoAcceptStep(cachedServerInfo);
+    } catch (err: any) {
+      // Log errors (deduplicated to avoid spam)
+      const msg = err?.message ?? String(err);
+      if (msg !== lastAutoAcceptError) {
+        console.log(`[AYesMan] auto-accept error: ${msg}`);
+        lastAutoAcceptError = msg;
+      }
+    }
+  }, AUTO_ACCEPT_INTERVAL_MS);
 }
 
 // ─── Language Server Discovery ───────────────────────────────────────────────
@@ -243,9 +451,9 @@ async function fetchQuota(showNotification = false) {
         availableFlowCredits: planStatus.availableFlowCredits || 0,
         monthlyPromptCredits: planStatus.planInfo?.monthlyPromptCredits || 0,
         monthlyFlowCredits: planStatus.planInfo?.monthlyFlowCredits || 0,
-        planName: planStatus.planInfo?.planName || 'Unknown',
+        planName: planStatus.planInfo?.planName || "Unknown",
       };
-      updateQuotaStatusBar(); // credits are included in the quota tooltip
+      updateQuotaStatusBar();
     }
 
     // Extract model quota from cascade configs
@@ -265,7 +473,6 @@ async function fetchQuota(showNotification = false) {
 
     // Also get command model configs for completion quota
     const cmdConfigs = await callGrpc(server, "GetCommandModelConfigs");
-    // Merge command model quotas (these are for autocomplete)
     if (cmdConfigs?.clientModelConfigs) {
       for (const c of cmdConfigs.clientModelConfigs) {
         if (
@@ -296,24 +503,24 @@ async function fetchQuota(showNotification = false) {
     );
   } catch (err: any) {
     console.error("[AYesMan] Quota fetch error:", err.message);
-    // Clear cache to retry discovery next time
     cachedServerInfo = undefined;
     quotaStatusBar.text = "$(error) Quota: Error";
     quotaStatusBar.tooltip = `Error: ${err.message}`;
   }
 }
 
-// ─── Status Bar Updates ──────────────────────────────────────────────────────
+// ─── Quota Status Bar Updates ─────────────────────────────────────────────────
 function updateQuotaStatusBar() {
   if (latestQuota.length === 0) {
     quotaStatusBar.text = "$(pulse) Quota: No Data";
     return;
   }
 
-  // Sort alphabetically by model name
   const sorted = [...latestQuota].sort((a, b) => a.label.localeCompare(b.label));
   const lowest = [...latestQuota].reduce((min, q) =>
-    q.remainingFraction < min.remainingFraction ? q : min, latestQuota[0]);
+    q.remainingFraction < min.remainingFraction ? q : min,
+    latestQuota[0],
+  );
 
   const pct = Math.round(lowest.remainingFraction * 100);
   const icon = pct >= 80 ? "$(check)" : pct >= 40 ? "$(warning)" : "$(error)";
@@ -323,7 +530,6 @@ function updateQuotaStatusBar() {
       : lowest.label;
   quotaStatusBar.text = `${icon} ${shortName}: ${pct}%`;
 
-  // Build rich hover tooltip
   const modelLines = sorted.map((q) => {
     const p = Math.round(q.remainingFraction * 100);
     const dot = p >= 80 ? "🟢" : p >= 40 ? "🟡" : "🔴";
@@ -333,9 +539,14 @@ function updateQuotaStatusBar() {
 
   let tooltipMd = `### AYesMan Quota\n\n${modelLines.join("  \n")}`;
 
-  // Append credits info
   if (latestCredits) {
-    const { availablePromptCredits, monthlyPromptCredits, availableFlowCredits, monthlyFlowCredits, planName } = latestCredits;
+    const {
+      availablePromptCredits,
+      monthlyPromptCredits,
+      availableFlowCredits,
+      monthlyFlowCredits,
+      planName,
+    } = latestCredits;
     tooltipMd += `\n\n---\n\n`;
     tooltipMd += `**${planName} Plan**\n\n`;
     tooltipMd += `💬 **Prompt** (autocomplete & chat): ${availablePromptCredits.toLocaleString()} / ${monthlyPromptCredits.toLocaleString()}\n\n`;
@@ -373,5 +584,6 @@ function formatResetTime(isoStr: string): string {
 
 // ─── Deactivate ──────────────────────────────────────────────────────────────
 export function deactivate() {
+  if (autoAcceptTimer) clearInterval(autoAcceptTimer);
   if (quotaPollTimer) clearInterval(quotaPollTimer);
 }
