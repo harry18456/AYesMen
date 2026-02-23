@@ -146,9 +146,26 @@ Even with Antigravity's built-in Auto Run enabled, certain command patterns alwa
 
 ---
 
-## Installation (Developer Mode)
+## Installation
 
-This extension is not published to any marketplace. Install from source:
+### Option A: Install from VSIX (recommended)
+
+**1. Package**
+
+```bash
+cd ayesman
+npm install
+npx vsce package
+# produces ayesman-1.0.0.vsix
+```
+
+**2. Install**
+
+In Antigravity: `Ctrl+Shift+P` → `Extensions: Install from VSIX...` → select `ayesman-1.0.0.vsix`
+
+---
+
+### Option B: Deploy from source (developer mode)
 
 **1. Build**
 
@@ -161,7 +178,7 @@ npm run compile
 **2. Deploy to Antigravity**
 
 ```powershell
-$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-0.1.0"
+$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-1.0.0"
 
 # Remove old version if present
 if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }

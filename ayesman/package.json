@@ -1,8 +1,8 @@
 {
   "name": "ayesman",
   "displayName": "AYesMan",
-  "description": "Auto-accept agent steps and display model quota for Antigravity",
-  "version": "0.2.0",
+  "description": "Antigravity YesMan, Auto-accept agent steps and display model quota for Antigravity",
+  "version": "1.0.0",
   "publisher": "ayesmen",
   "license": "MIT",
   "icon": "icon.png",

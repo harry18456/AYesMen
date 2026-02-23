@@ -156,9 +156,26 @@ Antigravity 內建的 Auto Run 刻意攔截含有 `|`、`;` 或特定黑名單�
 
 ---
 
-## 安裝說明（開發者模式）
+## 安裝說明
 
-本擴充套件未發布至任何 Marketplace，需從原始碼安裝。
+### 方式 A：從 VSIX 安裝（推薦）
+
+**1. 打包**
+
+```bash
+cd ayesman
+npm install
+npx vsce package
+# 產生 ayesman-1.0.0.vsix
+```
+
+**2. 安裝**
+
+在 Antigravity 中：`Ctrl+Shift+P` → `Extensions: Install from VSIX...` → 選擇 `ayesman-1.0.0.vsix`
+
+---
+
+### 方式 B：從原始碼部署（開發者模式）
 
 **1. 編譯**
 
@@ -171,7 +188,7 @@ npm run compile
 **2. 部署至 Antigravity**
 
 ```powershell
-$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-0.1.0"
+$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-1.0.0"
 
 # 移除舊版（如果有）
 if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
