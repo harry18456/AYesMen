@@ -1,4 +1,4 @@
-# AYesMan ⚡
+# AYesMan - Antigravity YesMan ⚡
 
 **AYesMan** 為 [Google Antigravity](https://antigravity.dev) 提供統一的狀態列項目，一眼掌握自動確認狀態，並可懸浮查看即時模型配額儀表板。
 
@@ -50,10 +50,10 @@ Antigravity 的 UI 不會顯示各模型的剩餘配額百分比。AYesMan 幫�
 
 ## 指令
 
-| 指令 | 說明 |
-|------|------|
+| 指令                          | 說明               |
+| ----------------------------- | ------------------ |
 | `AYesMan: Toggle Auto-Accept` | 啟用或停用自動確認 |
-| `AYesMan: Refresh Quota` | 手動刷新配額資料 |
+| `AYesMan: Refresh Quota`      | 手動刷新配額資料   |
 
 ---
 
@@ -76,6 +76,8 @@ AYesMan 與在你電腦上本機執行的 Antigravity 語言伺服器溝通。�
 ## 免責聲明
 
 AYesMan 是由社群獨立開發的非官方工具，透過與 Antigravity 本機語言伺服器互動，提供官方 UI 未提供的功能。請自行評估是否使用。
+
+本擴充套件完全在本機（localhost）運作。所有 API 呼叫都發送至 Antigravity 的本機語言伺服器，使用你現有的 session 憑證——與正常 IDE 操作行為完全相同，不會直接接觸 Google 的伺服器。
 
 本擴充套件不會繞過任何配額限制、不會增加 API 使用量，也不會將你的資料傳送至任何第三方。
 

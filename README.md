@@ -1,4 +1,4 @@
-# AYesMan ⚡
+# AYesMan - Antigravity YesMan ⚡
 
 **AYesMan** enhances your [Google Antigravity](https://antigravity.dev) experience with a unified status bar item that shows your auto-accept state and provides a real-time model quota dashboard on hover.
 
@@ -50,10 +50,10 @@ Antigravity's UI doesn't show you exactly how much quota you have left per model
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
+| Command                       | Description                   |
+| ----------------------------- | ----------------------------- |
 | `AYesMan: Toggle Auto-Accept` | Enable or disable auto-accept |
-| `AYesMan: Refresh Quota` | Manually refresh quota data |
+| `AYesMan: Refresh Quota`      | Manually refresh quota data   |
 
 ---
 
@@ -76,6 +76,8 @@ AYesMan communicates with the Antigravity language server running locally on you
 ## Disclaimer
 
 AYesMan is an independent, unofficial tool created by the community. It interacts with Antigravity's local language server to provide features not available in the official UI. Use at your own discretion.
+
+This extension operates entirely on localhost. All API calls are made to Antigravity's local language server using your existing session credentials — they are indistinguishable from normal IDE activity and do not touch Google's servers directly.
 
 This extension does not bypass any quota limits, does not increase API usage, and does not transmit your data to any third party.
 
