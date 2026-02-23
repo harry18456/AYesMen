@@ -1,112 +1,153 @@
 # AYesMan ⚡
 
-AYesMan 是一個專為 Google Antigravity 開發的 VS Code 擴充套件，旨在強化 Agent 的使用體驗，提供更透明的模型配額監控與額度顯示。
+An unofficial VS Code extension for Google Antigravity that adds a real-time quota dashboard and automatic agent step acceptance.
 
-> ⚠️ **注意**：本專案為非官方工具，透過逆向工程 Antigravity 內部語言伺服器 API 取得資料。
+> ⚠️ **Disclaimer**: This is an unofficial tool. It works by reverse-engineering Antigravity's internal language server API. See [Risks](#risks) before use.
 
----
-
-## 🌟 功能亮點
-
-### 📊 即時 Quota Dashboard (配額儀表板)
-
-Antigravity 內建的 UI 隱藏了具體的模型剩餘額度百分比，AYesMan 幫你把這些隱藏數據抓出來！
-
-- **狀態列即時顯示**：在編輯器右下角永遠顯示目前**剩餘配額最低**的模型與百分比（例如 `⚠ Gemini 3 Pro: 20%`）。
-- **智慧色彩警示**：
-  - 🟢 綠色 (`$(check)`)：配額充足 (≥ 80%)
-  - 🟡 黃色 (`$(warning)`)：配額消耗中 (40% ~ 79%)
-  - 🔴 紅色 (`$(error)`)：配額即將耗盡 (< 40%，背景變色)
-- **統整懸浮視窗 (Hover Tooltip)**：滑鼠停留在狀態列項目上，即可查看：
-  - 所有模型的剩餘百分比（依字母排序排列，方便尋找同系列模型）
-  - 每個模型的重置時間（例如 `resets in 2h 30m`）
-  - 目前帳號方案 (Plan) 的 Prompt 與 Flow Credits 使用量與上限
-- **自動刷新**：每 2 分鐘自動從背景更新資料，點擊狀態列項目亦可立即手動刷新。
+**[中文說明 → README.zh-tw.md](README.zh-tw.md)**
 
 ---
 
-## 🛠️ 開發與技術內幕
+## Features
 
-本擴充套件並未要求使用者手動輸入任何 API Key 或登入資訊，而是透過直接與 Antigravity 內部的 gRPC 語言伺服器溝通來取得即時資料：
+### 📊 Quota Dashboard
 
-1. **進程解析 (Process Inspection)**：擴充套件啟動時，會透過 PowerShell 掃描本機執行的 `language_server_windows_x64.exe` 進程。
-2. **參數擷取**：從進程的命令列參數中動態擷取對應的 `CSRF Token`。
-3. **通訊埠探測 (Port Probing)**：列出該進程所有監聽中的 TCP Port，並透過送出 `Heartbeat` 請求找出正確的 gRPC HTTPS/HTTP 端點。
-4. **資料獲取**：直接呼叫 `GetUserStatus` 與 `GetCommandModelConfigs` 兩個尚未公開的 API，取得最即時、精確的模型額度與帳號狀態。
+Antigravity's built-in UI hides model quota percentages. AYesMan surfaces them in the status bar.
 
----
+- **Status bar**: Always shows the model with the lowest remaining quota (e.g. `⚠ Gemini 3 Pro: 20%`)
+- **Color coding**: 🟢 ≥80% · 🟡 40–79% · 🔴 <40% (background changes)
+- **Hover tooltip**: All models with percentages, reset times, and plan credits (Prompt + Flow)
+- **Auto-refresh**: Every 2 minutes, or click the status bar item to refresh immediately
 
-## ✅ Auto-Accept (自動同意命令) 功能
+### ✅ Auto-Accept
 
-**目前狀態：已實作並驗證**
+Automatically confirms terminal commands proposed by the Antigravity Agent — no manual clicking required.
 
-每 500ms 自動確認 Antigravity Agent 提出的 terminal 指令，實現真正的全自動工作流。透過直接呼叫 Antigravity 語言伺服器的私有 gRPC API 實現，無需模擬按鍵或修改 Antigravity 本身。
-
-**運作流程：**
-
-1. 從 `language_server_windows_x64.exe` 進程提取 CSRF token 與監聽 port
-2. 每 500ms 呼叫 `GetAllCascadeTrajectories`，篩選出屬於當前 VS Code workspace 的對話
-3. 呼叫 `GetCascadeTrajectorySteps` 取得最後 10 步，找出待確認的 `runCommand` step
-4. 呼叫 `HandleCascadeUserInteraction { confirm: true }` 自動確認
-
-**特性：**
-
-- 點擊 Status Bar 或執行 `AYesMan: Toggle Auto-Accept` 可隨時暫停/恢復
-- 同時開啟多個專案時，每個視窗只處理自己 workspace 的 Agent 對話
-- 啟動時預設為 ON
-
-**研究過程中排除的方案：**
-
-- `executeCommand('antigravity.agent.acceptAgentStep')` — 需要內部 `cascade_id`，外部無法取得
-- Webview DOM 注入 — Chat 面板是原生 Workbench 元件，非標準 Webview
-- 鍵盤模擬 `Alt+Enter` — 無法精準判斷時機，干擾正常開發
+- **Toggle**: Click the status bar item or run `AYesMan: Toggle Auto-Accept` to pause/resume
+- **Multi-project safe**: Each extension instance only accepts steps from its own VS Code workspace
+- **Default**: ON at activation
 
 ---
 
-## �️ Terminal Auto Run (終端機自動執行) 安全限制發現
+## How It Works
 
-經過針對 Agent 內建 Terminal Auto Run 設定的深入測試，我們總結了其背後的安全阻鎖機制。即使使用者開啟了 Auto Run，系統仍會對特定指令模式強制要求手動核准。
+Both features share the same server discovery mechanism:
 
-**觸發手動核准（Auto Run 失效）的關鍵條件：**
+### 1. Server Discovery (runs once at startup)
 
-1. **語法符號限制**：只要命令中包含管線 `|` 或複合命令分號 `;`，系統即判定為不安全，會阻擋一次執行多個或連鎖命令。
-2. **特定命令黑名單**：部分具潛在破壞風險或敏感的指令被明確限制。例如傳統的目錄刪除指令 `rmdir` 以及指令探索工具 `Get-Command` 皆無法自動執行。
+```
+PowerShell: Get-CimInstance Win32_Process (language_server_windows_x64.exe)
+  → extract PID and --csrf_token from command-line arguments
+  → Get-NetTCPConnection to find listening ports for that PID
+  → probe each port with a Heartbeat request to find the gRPC endpoint
+  → cache result: { port, csrfToken, useHttps }
+```
 
-**可以順利自動執行的情況（Auto Run 成功）：**
+The CSRF token is stored in plaintext in the process's command-line arguments, accessible to any process running as the same user.
 
-- **單一且非黑名單指令**：只要避開上述限制，單一指令（如 `mkdir`, `ls`, `New-Item`, `Get-Content` 甚至 PowerShell 原生的目錄/檔案刪除指令 `Remove-Item`）多數能順利自動執行。
-- **路徑無關緊要**：系統的安全審查傾向「語法導向」而非「路徑隔離」。存取 Workspace 外部路徑（如使用者的 `Downloads` 資料夾）或讀取系統檔案（如 `hosts`），只要是單一且無管線的指令，皆可自動執行。
+### 2. Quota Dashboard (every 2 minutes)
 
-**💡 給開發者/Agent 的建議**：在需要自動化終端機執行的任務中，盡量將邏輯拆分為多個單獨的連續命令，並避免使用 `|`、`;` 或 `rmdir` 等黑名單指令，以此極大化無縫自動執行的體驗。
+```
+GetUserStatus          → plan info, prompt/flow credits, model quota fractions
+GetCommandModelConfigs → autocomplete model quota
+```
+
+### 3. Auto-Accept (every 500ms, uses cached server info)
+
+```
+GetAllCascadeTrajectories
+  → filter summaries by current VS Code workspace URI
+  → sort by lastModifiedTime desc, prefer non-IDLE status, take top 3
+
+GetCascadeTrajectorySteps { cascadeId, stepOffset: stepCount - 10 }
+  → scan last 10 steps for a pending runCommand (not DONE or CANCELLED)
+
+HandleCascadeUserInteraction { cascadeId, interaction: { runCommand: { confirm: true } } }
+  → confirms the step using the cascade's own trajectoryId
+```
+
+### Why not use `vscode.commands.executeCommand`?
+
+`antigravity.agent.acceptAgentStep` internally calls `HandleCascadeUserInteraction` via gRPC, which requires a `cascade_id` that is only available inside the workbench's internal state — not accessible from an extension. Direct gRPC is the only viable path.
+
+Other rejected approaches:
+- **Webview DOM injection**: Antigravity's chat panel is a native workbench component, not a standard VS Code Webview — injected scripts never execute
+- **Keyboard simulation (`Alt+Enter`)**: No reliable way to detect when the agent is waiting; blind sending interferes with normal typing
 
 ---
 
-## �📦 安裝說明 (開發者模式)
+## Risks
 
-由於這是一個客製化的輔助工具，需透過原始碼自行編譯並放入 Antigravity 的擴充套件資料夾中。
+### Quota Dashboard
 
-1. **編譯**：
-   ```bash
-   cd ayesman
-   npm install
-   npx tsc -p .
-   ```
-2. **部署到 Antigravity**：
+**Risk: Very low.**
 
-   ```powershell
-   # 移除舊版 (如果有)
-   if (Test-Path "c:\Users\harry\.antigravity\extensions\ayesmen.ayesman-0.1.0") {
-       Remove-Item "c:\Users\harry\.antigravity\extensions\ayesmen.ayesman-0.1.0" -Recurse -Force
-   }
+All calls are made locally to a server running on your own machine. The data read is your own account quota — equivalent to inspecting your own network traffic in DevTools. Nothing is sent to external servers beyond what Antigravity already sends.
 
-   # 複製新版
-   Copy-Item -Recurse ".\ayesman" "c:\Users\harry\.antigravity\extensions\ayesmen.ayesman-0.1.0"
-   ```
+### Auto-Accept
 
-3. **重新啟動** Antigravity 即可生效。
+**Risk: Low, but worth understanding.**
+
+| Concern | Assessment |
+|---------|------------|
+| Terms of Service | Using undocumented private APIs may technically violate ToS. Antigravity's ToS has not been audited for this. |
+| Detection | All API calls originate from `127.0.0.1` with a valid CSRF token, indistinguishable from normal IDE activity. The 500ms polling interval could theoretically be flagged by server-side anomaly detection, though no such mechanism has been observed. |
+| Account action | No known cases of enforcement. Community extensions doing similar automation (e.g. via `executeCommand`) have existed since Antigravity launched without action. |
+| API stability | Undocumented APIs can change or be removed at any time. The extension will silently fail rather than crash if a call fails. |
+
+**What this tool does NOT do:**
+- It does not bypass any quota or usage limits
+- It does not increase API consumption (it only confirms steps the user would confirm manually)
+- It does not exfiltrate any data
 
 ---
 
-## 📝 授權與免責聲明
+## Findings: Antigravity Terminal Auto Run Limitations
 
-本工具僅供個人研究與優化開發體驗使用。使用內部未公開 API 可能面臨隨時失效的風險，且過度頻繁的 API 呼叫可能會影響本機效能或違反使用者條款。請斟酌使用。
+Even with Antigravity's built-in Auto Run enabled, certain command patterns always require manual approval:
+
+**Blocked (always requires manual confirmation):**
+- Commands containing `|` (pipe) or `;` (semicolon)
+- Specific blacklisted commands: `rmdir`, `Get-Command`, and others
+
+**Allowed (auto-runs successfully):**
+- Single commands not on the blacklist: `mkdir`, `ls`, `New-Item`, `Remove-Item`, `Get-Content`, etc.
+- Path scope is not checked — commands accessing paths outside the workspace auto-run fine
+
+**Tip for agents**: Break multi-step logic into separate sequential commands. Avoid `|`, `;`, and blacklisted commands to maximize seamless auto-execution.
+
+---
+
+## Installation (Developer Mode)
+
+This extension is not published to any marketplace. Install from source:
+
+**1. Build**
+
+```bash
+cd ayesman
+npm install
+npm run compile
+```
+
+**2. Deploy to Antigravity**
+
+```powershell
+$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-0.1.0"
+
+# Remove old version if present
+if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
+
+# Copy built extension
+Copy-Item -Recurse ".\ayesman" $dest
+```
+
+**3. Reload**
+
+In Antigravity: `Ctrl+Shift+P` → `Developer: Reload Window`
+
+---
+
+## License
+
+MIT. This tool is for personal research and developer experience improvement only. Use at your own risk.
