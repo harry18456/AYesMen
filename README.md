@@ -1,6 +1,6 @@
 # AYesMan ⚡
 
-**AYesMan** enhances your [Google Antigravity](https://antigravity.dev) experience with two quality-of-life features: a real-time quota dashboard and automatic agent step acceptance.
+**AYesMan** enhances your [Google Antigravity](https://antigravity.dev) experience with a unified status bar item that shows your auto-accept state and provides a real-time model quota dashboard on hover.
 
 > ⚠️ Unofficial extension. Not affiliated with or endorsed by Google or Antigravity.
 
@@ -10,16 +10,15 @@
 
 ## Features
 
-### 📊 Quota Dashboard
+### ⚡ Unified Status Bar
 
-Antigravity's UI doesn't show you exactly how much quota you have left per model. AYesMan does.
+One status bar item does it all.
 
-- **Status bar**: Displays the model with the lowest remaining quota at a glance (e.g. `⚠ Gemini 3 Pro: 20%`)
-- **Color indicator**: 🟢 Healthy (≥80%) · 🟡 Moderate (40–79%) · 🔴 Low (<40%)
-- **Hover tooltip**: Full breakdown — all models with percentages, reset timers, and your plan's Prompt & Flow credit usage
-- **Auto-refresh**: Updates every 2 minutes in the background. Click the status bar item to refresh immediately.
-
-![Quota Dashboard screenshot placeholder](docs/quota-screenshot.png)
+- **Active**: `$(debug-start) YesMan` — auto-accept is running
+- **Paused**: `$(debug-pause) YesMan` — auto-accept is off (orange background)
+- **Click** to toggle auto-accept on/off
+- **Hover** to see a full quota breakdown — all models with percentages and reset timers
+- **Background color**: turns yellow (<40%) or red (<20%) when quota is critically low
 
 ### ✅ Auto-Accept
 
@@ -28,6 +27,17 @@ Stop clicking "Accept" on every terminal command the Agent proposes. AYesMan doe
 - **Toggle anytime**: Click the status bar item or use `Ctrl+Shift+P` → `AYesMan: Toggle Auto-Accept`
 - **Multi-project aware**: Works correctly when multiple Antigravity windows are open for different projects
 - **On by default**: Starts enabled when the extension loads
+- **No filter restrictions**: Antigravity's built-in Auto Run blocks commands with `|`, `;`, or certain keywords (e.g. `rmdir`). AYesMan accepts all of them — see [NOTE.md](NOTE.md) for details.
+
+> ⚠️ **Security note**: Because AYesMan bypasses Antigravity's safety filters, working with untrusted files or repositories while auto-accept is active carries prompt injection risk. Pause auto-accept (`$(debug-pause) YesMan`) when reviewing unfamiliar code.
+
+### 📊 Quota Dashboard
+
+Antigravity's UI doesn't show you exactly how much quota you have left per model. AYesMan does.
+
+- **Hover tooltip**: All models with percentages and reset timers
+- **Auto-refresh**: Updates every 2 minutes in the background
+- **Manual refresh**: `Ctrl+Shift+P` → `AYesMan: Refresh Quota`
 
 ---
 
@@ -44,7 +54,6 @@ Stop clicking "Accept" on every terminal command the Agent proposes. AYesMan doe
 |---------|-------------|
 | `AYesMan: Toggle Auto-Accept` | Enable or disable auto-accept |
 | `AYesMan: Refresh Quota` | Manually refresh quota data |
-| `AYesMan: Diagnose Auto-Accept` | Debug information for troubleshooting |
 
 ---
 
