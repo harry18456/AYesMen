@@ -6,24 +6,29 @@ Manage Language Server discovery, session matching, and cache lifecycle. Ensures
 ## Requirements
 ### Requirement: 支援多專案視窗平行運作
 
-AYesMan MUST connect exclusively to the Language Server belonging to the current VS Code window when multiple projects are open simultaneously. 系統 SHALL 精準連線到專屬於該視窗正在執行的 Language Server。
+AYesMan MUST connect exclusively to the Language Server belonging to the current VS Code window when multiple projects are open simultaneously.
 
-會話模式（`ayesman.sessionMatch: true`）下的後備邏輯 SHALL 遵守以下規則：
-- 若多個 Server 中，至少一個有綁定的工作區（`hasAnyBoundWorkspaces = true`），則只選擇其工作區路徑與當前視窗路徑重疊的 Server；若無吻合，返回 undefined。
-- 若所有 Server 皆無綁定工作區（`hasAnyBoundWorkspaces = false`），則只在「只有一個候選 Server」時接受，否則返回 undefined（避免多 Server 場景誤匹配）。
+Session 匹配 SHALL 以 parentPid 策略為預設：
 
-#### Scenario: 多視窗精準匹配
-- **WHEN** 使用者同時開啟了 "專案 A" 與 "專案 B" 兩個視窗
-- **WHEN** 在 "專案 B" 視窗下觸發 AYesMan 輪詢或指令
-- **THEN** AYesMan 必須掃描系統中所有的 Language Server，並只綁定其 `userStatus.cascadeModelConfigData.workspaces` 含有 "專案 B" 路徑的 Server
+- 若 `ProcessInfo.parentPid` 可用，系統 SHALL 只考慮 `parentPid === process.pid` 的 Language Server process
+- 若過濾後有候選 LS，直接對其 probe port，不發任何 gRPC workspace 比對呼叫
+- 若 `parentPid` 不可用（undefined）或過濾後無候選，系統 SHALL fallback 到 global mode（第一個可 probe 通的 LS）
 
-#### Scenario: 多伺服器無綁定工作區時返回 undefined
-- **WHEN** 系統中有多個 Language Server 候選，但所有候選均無綁定工作區
-- **THEN** 會話模式 SHALL 返回 undefined，不誤匹配任何 Server，等待下一次探索週期
+`ayesman.sessionMatch` 設定已廢棄，extension 不再讀取此設定。
 
-#### Scenario: 單伺服器無綁定工作區時接受
-- **WHEN** 系統中只有一個 Language Server 候選且無綁定工作區
-- **THEN** 會話模式 SHALL 接受該 Server 作為連線目標
+#### Scenario: parentPid 精準匹配
+- **WHEN** 使用者同時開啟了視窗 A（ExtHost PID=59932）與視窗 B（ExtHost PID=90476）
+- **WHEN** `findLanguageServerProcesses()` 回傳兩個 LS，parentPid 分別為 59932 和 90476
+- **WHEN** 視窗 A 的 AYesMan 執行 `discoverServer()`
+- **THEN** 只對 parentPid=59932 的 LS 執行 probe，不對另一個 LS 發出任何呼叫
+
+#### Scenario: parentPid 不可用時 fallback global
+- **WHEN** `findLanguageServerProcesses()` 回傳的 processes 中 `parentPid` 全為 undefined
+- **THEN** `discoverServer()` fallback 到 global mode，對第一個可 probe 通的 LS 建立連線
+
+#### Scenario: parentPid 過濾後無結果時 fallback global
+- **WHEN** `findLanguageServerProcesses()` 回傳的 processes 中無任何 `parentPid === process.pid`
+- **THEN** `discoverServer()` fallback 到 global mode
 
 ### Requirement: 斷線重連機制 (Cache Invalidation)
 
