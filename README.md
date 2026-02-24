@@ -67,7 +67,7 @@ ps -eo pid,ppid,args | grep language_server
   → cache result: { port, csrfToken, useHttps }
 ```
 
-If no match is found by parentPid (e.g. platform doesn't expose PPID), AYesMan falls back to **global mode**: connects to the first language server that responds to a Heartbeat, regardless of which window it belongs to.
+If no match is found by parentPid (e.g. platform doesn't expose PPID, or multi-window macOS issues), AYesMan falls back to **workspace mode**: it extracts the `--workspace_id` argument from the server's command-line arguments and matches it against the current VS Code workspace folders. This guarantees strict per-window session isolation even when process relationships are unreadable.
 
 The CSRF token is stored in plaintext in the process's command-line arguments, accessible to any process running as the same user.
 

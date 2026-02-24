@@ -41,7 +41,7 @@ export async function findLanguageServerProcesses(): Promise<ProcessInfo[]> {
 export async function findListeningPorts(pid: number): Promise<number[]> {
   try {
     const { stdout } = await execAsync(
-      `lsof -i -n -P -p ${pid} 2>/dev/null | grep LISTEN`,
+      `lsof -a -i -n -P -p ${pid} 2>/dev/null | grep LISTEN`,
       { timeout: 10000 },
     );
     const ports: number[] = [];
@@ -61,7 +61,7 @@ export async function findListeningPorts(pid: number): Promise<number[]> {
 export async function findExtHostConnectedPorts(pid: number): Promise<number[]> {
   try {
     const { stdout } = await execAsync(
-      `lsof -iTCP -sTCP:ESTABLISHED -n -P -p ${pid} 2>/dev/null`,
+      `lsof -a -iTCP -sTCP:ESTABLISHED -n -P -p ${pid} 2>/dev/null`,
       { timeout: 10000 },
     );
     const ports: number[] = [];

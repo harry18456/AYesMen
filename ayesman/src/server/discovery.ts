@@ -45,19 +45,33 @@ export async function discoverServer(): Promise<ServerInfo | undefined> {
   // parentPid mode: filter to processes belonging to this Extension Host.
   // process.pid === Extension Host PID, which is the direct parent of the
   // language_server spawned by the Antigravity extension in this window.
-  const myProcs = procs.filter(
-    (p) => p.parentPid !== undefined && p.parentPid === process.pid,
-  );
+  // workspace mode: filter by `--workspace_id` in cmdline matching current folders.
+  const myProcs = procs.filter((p) => {
+    if (p.parentPid !== undefined && p.parentPid === process.pid) return true;
+
+    const wsMatch = p.cmdline.match(/--workspace_id\s+(\S+)/);
+    if (wsMatch) {
+      const serverWsId = wsMatch[1].toLowerCase();
+      const hasMatch = (vscode.workspace.workspaceFolders ?? []).some((f) => {
+        let path = f.uri.path;
+        if (path.startsWith("/")) path = path.substring(1);
+        const expected = `${f.uri.scheme}_${path.replace(/\//g, "_")}`.toLowerCase();
+        return expected === serverWsId;
+      });
+      if (hasMatch) return true;
+    }
+    return false;
+  });
 
   if (myProcs.length > 0) {
     log(
-      `[AYesMan] parentPid mode: ${myProcs.length} candidate(s) matching ExtHost PID ${process.pid}`,
+      `[AYesMan] Workspace/parentPid mode: ${myProcs.length} candidate(s) for ExtHost PID ${process.pid}`,
     );
-    const result = await probeProcesses(myProcs, "parentPid");
+    const result = await probeProcesses(myProcs, "workspace/parentPid");
     if (result) return result;
   } else {
     log(
-      `[AYesMan] parentPid mode: no match for ExtHost PID ${process.pid}, falling back to global mode`,
+      `[AYesMan] Workspace/parentPid mode: no match for ExtHost PID ${process.pid} or workspaces, falling back to global mode`,
     );
   }
 

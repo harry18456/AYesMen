@@ -67,7 +67,7 @@ ps -eo pid,ppid,args | grep language_server → 找到進程
   → 快取結果：{ port, csrfToken, useHttps }
 ```
 
-若 parentPid 匹配未找到結果（例如平台不提供 PPID），AYesMan 退回 **global mode**：連接到第一個回應 Heartbeat 的語言伺服器，不限視窗歸屬。
+若 parentPid 匹配未找到結果（例如平台不提供 PPID，或是 macOS 多視窗遇到的 PID 錯亂問題），AYesMan 會退回 **workspace 模式**：它會提取伺服器啟動參數中的 `--workspace_id` 並與當前 VS Code 開啟的工作區資料夾進行比對。這確保了即使進程關聯性無法讀取，也絕對能維持嚴格的「每個視窗獨立連線」隔離。
 
 CSRF token 以明文存在進程的命令列參數中，同一使用者的所有進程皆可讀取。
 
