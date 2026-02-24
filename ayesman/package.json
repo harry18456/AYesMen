@@ -37,12 +37,6 @@
           "default": true,
           "description": "Enable auto-accepting steps in Antigravity",
           "scope": "application"
-        },
-        "ayesman.sessionMatch": {
-          "type": "boolean",
-          "default": false,
-          "description": "Match server to current workspace (session mode). Slower but correct when multiple Antigravity windows are open. Default: off (global mode — connect to first available server).",
-          "scope": "application"
         }
       }
     },
