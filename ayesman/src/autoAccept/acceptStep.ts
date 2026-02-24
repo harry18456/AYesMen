@@ -69,7 +69,8 @@ export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
       }
     }
 
-    for (let i = steps.length - 1; i >= 0; i--) {
+    let acceptedAny = false;
+    for (let i = 0; i < steps.length; i++) {
       const step = steps[i] as Record<string, unknown>;
       if (!step?.runCommand) continue;
 
@@ -120,7 +121,9 @@ export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
       log(
         `[AYesMan] Auto-accepted step ${absoluteIdx}: ${proposedCmd.substring(0, 80)}`,
       );
-      return;
+      acceptedAny = true;
     }
+
+    if (acceptedAny) return;
   }
 }
