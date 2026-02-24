@@ -2,7 +2,7 @@
   "name": "ayesman",
   "displayName": "AYesMan",
   "description": "Antigravity YesMan, Auto-accept agent steps and display model quota for Antigravity",
-  "version": "1.2.9",
+  "version": "1.3.0",
   "publisher": "ayesmen",
   "license": "MIT",
   "icon": "icon.png",
@@ -36,6 +36,12 @@
           "type": "boolean",
           "default": true,
           "description": "Enable auto-accepting steps in Antigravity",
+          "scope": "application"
+        },
+        "ayesman.sessionMatch": {
+          "type": "boolean",
+          "default": false,
+          "description": "Match server to current workspace (session mode). Slower but correct when multiple Antigravity windows are open. Default: off (global mode — connect to first available server).",
           "scope": "application"
         }
       }

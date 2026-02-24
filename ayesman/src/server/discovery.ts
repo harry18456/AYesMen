@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import type { ServerInfo } from "../types/index.js";
+import type { ServerInfo, ProcessInfo } from "../types/index.js";
 import { callGrpc } from "./grpc.js";
 import { probePort } from "./probe.js";
 import * as windows from "./platform/windows.js";
@@ -15,6 +15,12 @@ export function getCachedServerInfo(): ServerInfo | undefined {
 
 export function clearCachedServerInfo(): void {
   _cachedServerInfo = undefined;
+}
+
+function isSessionMatchEnabled(): boolean {
+  return vscode.workspace
+    .getConfiguration()
+    .get<boolean>("ayesman.sessionMatch", false);
 }
 
 function normalizeFileUri(uri: string): string {
@@ -40,6 +46,67 @@ export async function discoverServer(): Promise<ServerInfo | undefined> {
     return undefined;
   }
 
+  if (isSessionMatchEnabled()) {
+    return discoverServerSession(procs);
+  }
+  return discoverServerGlobal(procs);
+}
+
+// Global mode (default): connect to the first server that responds to Heartbeat.
+// No workspace matching — fast, works across all windows.
+async function discoverServerGlobal(
+  procs: ProcessInfo[],
+): Promise<ServerInfo | undefined> {
+  for (const proc of procs) {
+    const csrfMatch = proc.cmdline.match(/--csrf_token\s+(\S+)/);
+    if (!csrfMatch) {
+      console.log(
+        `[AYesMan] PID ${proc.pid}: no --csrf_token in cmdline, skipping`,
+      );
+      continue;
+    }
+    const csrfToken = csrfMatch[1];
+    const ports = await platform.findListeningPorts(proc.pid);
+
+    if (ports.length === 0) {
+      console.log(
+        `[AYesMan] PID ${proc.pid}: no listening ports found, skipping`,
+      );
+      continue;
+    }
+
+    console.log(
+      `[AYesMan] LS PID=${proc.pid}, CSRF=${csrfToken.substring(0, 8)}..., ports=${ports.join(",")}`,
+    );
+
+    for (const port of ports) {
+      for (const useHttps of [true, false]) {
+        const proto = useHttps ? "https" : "http";
+        const ok = await probePort(port, csrfToken, useHttps);
+        console.log(
+          `[AYesMan] PID ${proc.pid} port=${port} ${proto} probe=${ok ? "OK" : "FAIL"}`,
+        );
+        if (ok) {
+          _cachedServerInfo = { port, csrfToken, useHttps };
+          console.log(
+            `[AYesMan] Global mode: connected to ${proto}://127.0.0.1:${port}`,
+          );
+          return _cachedServerInfo;
+        }
+      }
+    }
+  }
+
+  console.error("[AYesMan] Global mode: could not find any working gRPC port");
+  return undefined;
+}
+
+// Session mode: match server to the current VS Code workspace via socket
+// binding or trajectory workspace paths. Slower but correct when multiple
+// Antigravity windows are open and isolation is desired.
+async function discoverServerSession(
+  procs: ProcessInfo[],
+): Promise<ServerInfo | undefined> {
   const extHostPorts = new Set(
     await platform.findExtHostConnectedPorts(process.pid),
   );
@@ -89,12 +156,13 @@ export async function discoverServer(): Promise<ServerInfo | undefined> {
             {},
           );
           const summaries: Record<string, unknown> =
-            (allTrajs as Record<string, unknown>)?.trajectorySummaries as Record<string, unknown> ?? {};
+            (allTrajs as Record<string, unknown>)
+              ?.trajectorySummaries as Record<string, unknown> ?? {};
 
-          // 1. Direct Socket Binding (the ultimate fix, but sometimes fails on windows)
+          // 1. Direct Socket Binding
           let isMatch = procs.length === 1 || extHostPorts.has(port);
 
-          // 2. Fallback: Workspace Path Matching (for long-lived LS when extHostPorts fails)
+          // 2. Fallback: Workspace Path Matching
           if (!isMatch && procs.length > 1) {
             let hasAnyBoundWorkspaces = false;
             let hasMatchingWorkspace = false;
@@ -106,7 +174,8 @@ export async function discoverServer(): Promise<ServerInfo | undefined> {
                 hasAnyBoundWorkspaces = true;
                 const overlaps = cascadeWorkspaces.some((w) => {
                   const p = normalizeFileUri(
-                    (w as Record<string, string>)?.workspaceFolderAbsoluteUri ?? "",
+                    (w as Record<string, string>)
+                      ?.workspaceFolderAbsoluteUri ?? "",
                   );
                   return wsPaths.has(p);
                 });
@@ -114,9 +183,6 @@ export async function discoverServer(): Promise<ServerInfo | undefined> {
               }
             }
 
-            // If at least one trajectory explicitly matches our current workspaces -> Match
-            // Alternatively, if NO trajectories in this LS have ANY workspace bound, we blindly
-            // accept it as fallback (fixes the "new unsaved window without workspace" issue)
             isMatch = hasMatchingWorkspace || !hasAnyBoundWorkspaces;
           }
 
@@ -128,7 +194,7 @@ export async function discoverServer(): Promise<ServerInfo | undefined> {
           if (isMatch) {
             _cachedServerInfo = serverInfo;
             console.log(
-              `[AYesMan] Found matching gRPC (connected=${hasExtHostSocket}) at ${proto}://127.0.0.1:${port}`,
+              `[AYesMan] Session mode: matched gRPC (connected=${hasExtHostSocket}) at ${proto}://127.0.0.1:${port}`,
             );
             return _cachedServerInfo;
           } else {
@@ -144,7 +210,7 @@ export async function discoverServer(): Promise<ServerInfo | undefined> {
   }
 
   console.error(
-    "[AYesMan] Could not find working gRPC port connected to this Extension Host",
+    "[AYesMan] Session mode: could not find matching gRPC port for this workspace",
   );
   return undefined;
 }

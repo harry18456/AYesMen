@@ -20,13 +20,13 @@ export function updateUnifiedStatusBar(): void {
   if (!_statusBar) return;
   const isEnabled = _getAutoAcceptEnabled();
   if (!isEnabled) {
-    _statusBar.text = "$(debug-pause) YesMan";
+    _statusBar.text = "$(debug-pause) AYesMan";
     _statusBar.backgroundColor = new vscode.ThemeColor(
       "statusBarItem.warningBackground",
     );
     return;
   }
-  _statusBar.text = "$(debug-start) YesMan";
+  _statusBar.text = "$(debug-start) AYesMan";
   const latestQuota = getLatestQuota();
   if (latestQuota.length > 0) {
     const lowest = latestQuota.reduce(
