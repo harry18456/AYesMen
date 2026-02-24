@@ -41,17 +41,33 @@ Automatically confirms terminal commands proposed by the Antigravity Agent — n
 
 ## How It Works
 
-Both features share the same server discovery mechanism:
+Both features share the same server discovery mechanism.
 
-### 1. Server Discovery (runs once at startup)
+### 1. Server Discovery (runs once at startup, cached for 5 min)
 
+Each Antigravity window has its own language server process. AYesMan identifies which one belongs to the current window using **parentPid matching**: Antigravity spawns the language server directly from the Extension Host process, so `language_server.parentPid === process.pid` uniquely identifies the right server without any network calls.
+
+**Windows:**
 ```
-PowerShell: Get-CimInstance Win32_Process (language_server_windows_x64.exe)
-  → extract PID and --csrf_token from command-line arguments
-  → Get-NetTCPConnection to find listening ports for that PID
-  → probe each port with a Heartbeat request to find the gRPC endpoint
+PowerShell Get-CimInstance Win32_Process (language_server_windows_x64.exe)
+  → extract PID, ParentProcessId, and --csrf_token
+  → filter: keep only the process whose ParentProcessId = this Extension Host PID
+  → netstat -ano to find listening ports for that PID
+  → probe each port with a Heartbeat request (HTTP/HTTPS)
   → cache result: { port, csrfToken, useHttps }
 ```
+
+**macOS / Linux:**
+```
+ps -eo pid,ppid,args | grep language_server
+  → extract PID, PPID, and --csrf_token
+  → filter: keep only the process whose PPID = this Extension Host PID
+  → lsof -i -n -P -p <pid> | grep LISTEN → find listening port
+  → probe each port with a Heartbeat request
+  → cache result: { port, csrfToken, useHttps }
+```
+
+If no match is found by parentPid (e.g. platform doesn't expose PPID), AYesMan falls back to **global mode**: connects to the first language server that responds to a Heartbeat, regardless of which window it belongs to.
 
 The CSRF token is stored in plaintext in the process's command-line arguments, accessible to any process running as the same user.
 
@@ -62,11 +78,12 @@ GetUserStatus          → plan info, prompt/flow credits, model quota fractions
 GetCommandModelConfigs → autocomplete model quota
 ```
 
-### 3. Auto-Accept (every 500ms, uses cached server info)
+### 3. Auto-Accept (every 500ms, reads from cache)
+
+The auto-accept loop only reads the already-cached server info — it never triggers discovery itself. Discovery is driven by the quota polling cycle.
 
 ```
 GetAllCascadeTrajectories
-  → filter summaries by current VS Code workspace URI
   → sort by lastModifiedTime desc, prefer non-IDLE status, take top 3
 
 GetCascadeTrajectorySteps { cascadeId, stepOffset: stepCount - 10 }
@@ -75,6 +92,14 @@ GetCascadeTrajectorySteps { cascadeId, stepOffset: stepCount - 10 }
 HandleCascadeUserInteraction { cascadeId, interaction: { runCommand: { confirm: true } } }
   → confirms the step using the cascade's own trajectoryId
 ```
+
+### Per-Window State
+
+Auto-accept state (`ON` / `OFF`) is stored **in-memory** inside each window's Extension Host process — it is not written to VS Code settings. This means:
+
+- Each Antigravity window has its own independent auto-accept toggle
+- Toggling in Window A has no effect on Window B
+- Every new window starts with auto-accept **ON** by default (no configuration needed)
 
 ### Why not use `vscode.commands.executeCommand`?
 

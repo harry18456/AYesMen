@@ -43,25 +43,31 @@ Antigravity 內建 UI 隱藏了各模型的剩餘配額百分比，AYesMan 在�
 
 兩個功能共用同一套伺服器探測機制。
 
-### 1. 語言伺服器探測（啟動時執行一次）
+### 1. 語言伺服器探測（啟動時執行一次，快取 5 分鐘）
+
+每個 Antigravity 視窗都有各自的語言伺服器進程。AYesMan 使用 **parentPid 匹配**來識別屬於當前視窗的那一個：Antigravity 從 Extension Host 進程直接 spawn 語言伺服器，所以 `language_server.parentPid === process.pid` 可精準識別正確的伺服器，不需要任何網路呼叫。
 
 **Windows：**
 ```
 PowerShell Get-CimInstance → 找到 language_server_windows_x64.exe
-  → 從命令列參數提取 PID 與 --csrf_token
-  → Get-NetTCPConnection 找出該 PID 監聽的所有 TCP port
-  → 對每個 port 送出 Heartbeat，找到正確的 gRPC 端點
+  → 提取 PID、ParentProcessId 與 --csrf_token
+  → 過濾：只保留 ParentProcessId = 當前 Extension Host PID 的進程
+  → netstat -ano 找出該 PID 監聽的所有 TCP port
+  → 對每個 port 送出 Heartbeat（HTTP/HTTPS）
   → 快取結果：{ port, csrfToken, useHttps }
 ```
 
 **macOS / Linux：**
 ```
-ps aux | grep language_server → 找到進程
-  → 從輸出的命令列欄位提取 PID 與 --csrf_token
+ps -eo pid,ppid,args | grep language_server → 找到進程
+  → 提取 PID、PPID 與 --csrf_token
+  → 過濾：只保留 PPID = 當前 Extension Host PID 的進程
   → lsof -i -n -P -p <pid> | grep LISTEN → 找出監聽 port
-  → 對每個 port 送出 Heartbeat，找到正確的 gRPC 端點
+  → 對每個 port 送出 Heartbeat
   → 快取結果：{ port, csrfToken, useHttps }
 ```
+
+若 parentPid 匹配未找到結果（例如平台不提供 PPID），AYesMan 退回 **global mode**：連接到第一個回應 Heartbeat 的語言伺服器，不限視窗歸屬。
 
 CSRF token 以明文存在進程的命令列參數中，同一使用者的所有進程皆可讀取。
 
@@ -72,11 +78,12 @@ GetUserStatus          → 方案資訊、Prompt/Flow Credits、模型配額比�
 GetCommandModelConfigs → 自動補全模型配額
 ```
 
-### 3. 自動確認（每 500ms，使用快取的伺服器資訊）
+### 3. 自動確認（每 500ms，從快取讀取）
+
+自動確認的輪詢迴圈只讀取已快取的伺服器資訊，不會自己觸發探測。探測是由配額輪詢週期驅動的。
 
 ```
 GetAllCascadeTrajectories
-  → 依當前 VS Code workspace URI 篩選 cascade 摘要
   → 按 lastModifiedTime 排序（非 IDLE 優先），取前 3 個
 
 GetCascadeTrajectorySteps { cascadeId, stepOffset: stepCount - 10 }
@@ -85,6 +92,14 @@ GetCascadeTrajectorySteps { cascadeId, stepOffset: stepCount - 10 }
 HandleCascadeUserInteraction { cascadeId, interaction: { runCommand: { confirm: true } } }
   → 使用 cascade 自身的 trajectoryId 確認步驟
 ```
+
+### 視窗獨立狀態
+
+Auto-accept 的開關狀態存在各視窗 Extension Host 進程的**記憶體**中，不寫入 VS Code 設定檔。這代表：
+
+- 每個 Antigravity 視窗都有獨立的 auto-accept 開關
+- 在視窗 A 切換不影響視窗 B
+- 每個新視窗啟動時自動預設為 **ON**，不需要任何設定
 
 ### 為什麼不用 `vscode.commands.executeCommand`？
 
