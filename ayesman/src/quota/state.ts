@@ -4,7 +4,9 @@ let _latestQuota: QuotaEntry[] = [];
 let _latestCredits: CreditsInfo | undefined;
 
 export function getLatestQuota(): QuotaEntry[] {
-  return _latestQuota;
+  // Return a shallow copy to prevent callers from accidentally mutating
+  // the module-level state array.
+  return [..._latestQuota];
 }
 
 export function setLatestQuota(quota: QuotaEntry[]): void {

@@ -4,17 +4,28 @@ import { callGrpc } from "./grpc.js";
 import { probePort } from "./probe.js";
 import * as windows from "./platform/windows.js";
 import * as unix from "./platform/unix.js";
+import { log } from "../logger.js";
 
 const platform = process.platform === "win32" ? windows : unix;
 
+// Cache TTL: invalidate after 5 minutes to handle server restarts where
+// the port stays the same (errors only trigger immediate invalidation).
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
 let _cachedServerInfo: ServerInfo | undefined;
+let _cachedAt = 0;
 
 export function getCachedServerInfo(): ServerInfo | undefined {
+  if (_cachedServerInfo && Date.now() - _cachedAt > CACHE_TTL_MS) {
+    _cachedServerInfo = undefined;
+    _cachedAt = 0;
+  }
   return _cachedServerInfo;
 }
 
 export function clearCachedServerInfo(): void {
   _cachedServerInfo = undefined;
+  _cachedAt = 0;
 }
 
 function isSessionMatchEnabled(): boolean {
@@ -36,13 +47,18 @@ function currentWorkspacePaths(): Set<string> {
   return new Set(paths);
 }
 
+function setCachedServerInfo(info: ServerInfo): void {
+  _cachedServerInfo = info;
+  _cachedAt = Date.now();
+}
+
 export async function discoverServer(): Promise<ServerInfo | undefined> {
-  if (_cachedServerInfo) return _cachedServerInfo;
+  if (getCachedServerInfo()) return _cachedServerInfo;
 
   const procs = await platform.findLanguageServerProcesses();
-  console.log(`[AYesMan] Found ${procs.length} language server processes`);
+  log(`[AYesMan] Found ${procs.length} language server processes`);
   if (procs.length === 0) {
-    console.error("[AYesMan] Language server processes not found");
+    log("[AYesMan] Language server processes not found");
     return undefined;
   }
 
@@ -60,7 +76,7 @@ async function discoverServerGlobal(
   for (const proc of procs) {
     const csrfMatch = proc.cmdline.match(/--csrf_token\s+(\S+)/);
     if (!csrfMatch) {
-      console.log(
+      log(
         `[AYesMan] PID ${proc.pid}: no --csrf_token in cmdline, skipping`,
       );
       continue;
@@ -69,13 +85,13 @@ async function discoverServerGlobal(
     const ports = await platform.findListeningPorts(proc.pid);
 
     if (ports.length === 0) {
-      console.log(
+      log(
         `[AYesMan] PID ${proc.pid}: no listening ports found, skipping`,
       );
       continue;
     }
 
-    console.log(
+    log(
       `[AYesMan] LS PID=${proc.pid}, CSRF=${csrfToken.substring(0, 8)}..., ports=${ports.join(",")}`,
     );
 
@@ -83,12 +99,12 @@ async function discoverServerGlobal(
       for (const useHttps of [true, false]) {
         const proto = useHttps ? "https" : "http";
         const ok = await probePort(port, csrfToken, useHttps);
-        console.log(
+        log(
           `[AYesMan] PID ${proc.pid} port=${port} ${proto} probe=${ok ? "OK" : "FAIL"}`,
         );
         if (ok) {
-          _cachedServerInfo = { port, csrfToken, useHttps };
-          console.log(
+          setCachedServerInfo({ port, csrfToken, useHttps });
+          log(
             `[AYesMan] Global mode: connected to ${proto}://127.0.0.1:${port}`,
           );
           return _cachedServerInfo;
@@ -97,7 +113,7 @@ async function discoverServerGlobal(
     }
   }
 
-  console.error("[AYesMan] Global mode: could not find any working gRPC port");
+  log("[AYesMan] Global mode: could not find any working gRPC port");
   return undefined;
 }
 
@@ -110,14 +126,14 @@ async function discoverServerSession(
   const extHostPorts = new Set(
     await platform.findExtHostConnectedPorts(process.pid),
   );
-  console.log(
+  log(
     `[AYesMan] ExtHost (PID ${process.pid}) connected to potential ports: ${Array.from(extHostPorts).join(",")}`,
   );
 
   for (const proc of procs) {
     const csrfMatch = proc.cmdline.match(/--csrf_token\s+(\S+)/);
     if (!csrfMatch) {
-      console.log(
+      log(
         `[AYesMan] PID ${proc.pid}: no --csrf_token in cmdline, skipping`,
       );
       continue;
@@ -126,13 +142,13 @@ async function discoverServerSession(
     const ports = await platform.findListeningPorts(proc.pid);
 
     if (ports.length === 0) {
-      console.log(
+      log(
         `[AYesMan] PID ${proc.pid}: no listening ports found, skipping`,
       );
       continue;
     }
 
-    console.log(
+    log(
       `[AYesMan] LS PID=${proc.pid}, CSRF=${csrfToken.substring(0, 8)}..., ports=${ports.join(",")}`,
     );
 
@@ -142,7 +158,7 @@ async function discoverServerSession(
       for (const useHttps of [true, false]) {
         const proto = useHttps ? "https" : "http";
         const ok = await probePort(port, csrfToken, useHttps);
-        console.log(
+        log(
           `[AYesMan] PID ${proc.pid} port=${port} ${proto} probe=${ok ? "OK" : "FAIL"}`,
         );
 
@@ -159,10 +175,10 @@ async function discoverServerSession(
             (allTrajs as Record<string, unknown>)
               ?.trajectorySummaries as Record<string, unknown> ?? {};
 
-          // 1. Direct Socket Binding
+          // 1. Direct Socket Binding — only single-process or extHost socket match
           let isMatch = procs.length === 1 || extHostPorts.has(port);
 
-          // 2. Fallback: Workspace Path Matching
+          // 2. Fallback: Workspace Path Matching (multi-process, no socket match)
           if (!isMatch && procs.length > 1) {
             let hasAnyBoundWorkspaces = false;
             let hasMatchingWorkspace = false;
@@ -183,25 +199,30 @@ async function discoverServerSession(
               }
             }
 
-            isMatch = hasMatchingWorkspace || !hasAnyBoundWorkspaces;
+            // When at least one server has bound workspaces, require an exact match.
+            // When no server has bound workspaces, accept only if this is the sole
+            // candidate — avoids mis-matching in multi-server scenarios.
+            isMatch =
+              hasMatchingWorkspace ||
+              (!hasAnyBoundWorkspaces && procs.length === 1);
           }
 
           const hasExtHostSocket = extHostPorts.has(port);
-          console.log(
+          log(
             `[AYesMan] PID ${proc.pid} port=${port}: workspace match=${isMatch}, extHostSocket=${hasExtHostSocket}`,
           );
 
           if (isMatch) {
-            _cachedServerInfo = serverInfo;
-            console.log(
+            setCachedServerInfo(serverInfo);
+            log(
               `[AYesMan] Session mode: matched gRPC (connected=${hasExtHostSocket}) at ${proto}://127.0.0.1:${port}`,
             );
             return _cachedServerInfo;
           } else {
-            console.log(`[AYesMan] Failed gRPC matching for port ${port}`);
+            log(`[AYesMan] Failed gRPC matching for port ${port}`);
           }
         } catch (err: unknown) {
-          console.error(
+          log(
             `[AYesMan] Failed to verify grpc on port ${port}: ${(err as Error).message}`,
           );
         }
@@ -209,7 +230,7 @@ async function discoverServerSession(
     }
   }
 
-  console.error(
+  log(
     "[AYesMan] Session mode: could not find matching gRPC port for this workspace",
   );
   return undefined;

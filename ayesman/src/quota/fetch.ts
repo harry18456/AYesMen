@@ -3,12 +3,13 @@ import type { QuotaEntry, CreditsInfo } from "../types/index.js";
 import { callGrpc } from "../server/grpc.js";
 import { discoverServer, clearCachedServerInfo } from "../server/discovery.js";
 import {
-  getLatestQuota,
   setLatestQuota,
   setLatestCredits,
+  getLatestQuota,
   getLatestCredits,
 } from "./state.js";
 import { updateQuotaStatusBar } from "../ui/statusBar.js";
+import { log } from "../logger.js";
 
 let _statusBar: vscode.StatusBarItem;
 
@@ -22,7 +23,7 @@ export async function fetchQuota(showNotification = false): Promise<void> {
   try {
     server = await discoverServer();
   } catch (err: unknown) {
-    console.error("[AYesMan] Server discovery error:", (err as Error).message);
+    log(`[AYesMan] Server discovery error: ${(err as Error).message}`);
     clearCachedServerInfo();
     _statusBar.tooltip = `AYesMan: Quota fetch error — ${(err as Error).message}`;
     return;
@@ -60,11 +61,16 @@ export async function fetchQuota(showNotification = false): Promise<void> {
       updateQuotaStatusBar();
     }
 
-    // Extract model quota from cascade configs
+    // Phase 3: Rebuild quota list from scratch each cycle.
+    // Using a replace strategy (not append) ensures stale model entries from
+    // previous cycles are never retained.
+    let newQuota: QuotaEntry[] = [];
+
+    // Part A: cascade model quotas from GetUserStatus
     const cascadeConfigs =
       ((userStatus?.userStatus as Record<string, unknown>)?.cascadeModelConfigData as Record<string, unknown>)?.clientModelConfigs;
     if (cascadeConfigs && Array.isArray(cascadeConfigs)) {
-      const quota: QuotaEntry[] = cascadeConfigs
+      newQuota = cascadeConfigs
         .filter((c: Record<string, unknown>) => c.quotaInfo)
         .map((c: Record<string, unknown>) => ({
           label: (c.label as string) || "Unknown",
@@ -73,35 +79,31 @@ export async function fetchQuota(showNotification = false): Promise<void> {
             ((c.quotaInfo as Record<string, number>)?.remainingFraction) ?? 1,
           resetTime: (c.quotaInfo as Record<string, string>)?.resetTime,
         }));
-      setLatestQuota(quota);
-      updateQuotaStatusBar();
     }
 
-    // Also get command model configs for completion quota
+    // Part B: autocomplete model quotas from GetCommandModelConfigs.
+    // Only add models not already present from Part A.
     const cmdConfigs = await callGrpc(server, "GetCommandModelConfigs") as Record<string, unknown>;
     if (cmdConfigs?.clientModelConfigs && Array.isArray(cmdConfigs.clientModelConfigs)) {
-      const currentQuota = getLatestQuota();
-      const newEntries: QuotaEntry[] = [];
+      const existingIds = new Set(newQuota.map((q) => q.modelId));
       for (const c of cmdConfigs.clientModelConfigs as Record<string, unknown>[]) {
         const modelId = ((c.modelOrAlias as Record<string, string>)?.model) || "";
-        if (
-          c.quotaInfo &&
-          !currentQuota.find((q: QuotaEntry) => q.modelId === modelId)
-        ) {
-          newEntries.push({
+        if (c.quotaInfo && !existingIds.has(modelId)) {
+          newQuota.push({
             label: `${c.label as string} (Autocomplete)`,
             modelId,
             remainingFraction:
               ((c.quotaInfo as Record<string, number>)?.remainingFraction) ?? 1,
             resetTime: (c.quotaInfo as Record<string, string>)?.resetTime,
           });
+          existingIds.add(modelId);
         }
       }
-      if (newEntries.length > 0) {
-        setLatestQuota([...currentQuota, ...newEntries]);
-        updateQuotaStatusBar();
-      }
     }
+
+    // Replace the entire quota state in one atomic update.
+    setLatestQuota(newQuota);
+    updateQuotaStatusBar();
 
     if (showNotification) {
       vscode.window.showInformationMessage(
@@ -110,11 +112,11 @@ export async function fetchQuota(showNotification = false): Promise<void> {
     }
 
     const credits = getLatestCredits();
-    console.log(
+    log(
       `[AYesMan] Quota refreshed: ${getLatestQuota().length} models, credits: P=${credits?.availablePromptCredits} F=${credits?.availableFlowCredits}`,
     );
   } catch (err: unknown) {
-    console.error("[AYesMan] Quota fetch error:", (err as Error).message);
+    log(`[AYesMan] Quota fetch error: ${(err as Error).message}`);
     _statusBar.tooltip = `AYesMan: Quota fetch error — ${(err as Error).message}`;
     clearCachedServerInfo();
   }

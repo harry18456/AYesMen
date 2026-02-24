@@ -1,6 +1,7 @@
 import { exec } from "child_process";
 import { promisify } from "util";
 import type { ProcessInfo } from "../../types/index.js";
+import { log } from "../../logger.js";
 
 const execAsync = promisify(exec);
 
@@ -39,7 +40,7 @@ export async function findLanguageServerProcesses(): Promise<ProcessInfo[]> {
     }
     return processes;
   } catch (err: unknown) {
-    console.error(`[AYesMan] findLanguageServerProcesses error: ${(err as Error).message}`);
+    log(`[AYesMan] findLanguageServerProcesses error: ${(err as Error).message}`);
     return [];
   }
 }
@@ -47,38 +48,75 @@ export async function findLanguageServerProcesses(): Promise<ProcessInfo[]> {
 // Uses netstat -ano instead of Get-NetTCPConnection to avoid privilege
 // issues that cause the PowerShell cmdlet to silently return nothing
 // when called from a non-elevated Extension Host process.
+//
+// Uses field-splitting instead of a single regex to handle variable spacing
+// across different Windows versions. Supports both IPv4 and IPv6.
 export async function findListeningPorts(pid: number): Promise<number[]> {
   try {
     const stdout = await getNetstatData();
+    const seen = new Set<number>();
     const ports: number[] = [];
     for (const line of stdout.split(/\r?\n/)) {
-      // e.g. "  TCP    0.0.0.0:57213    0.0.0.0:0    LISTENING    60084"
-      const match = line.match(/\bTCP\b\s+\S+:(\d+)\s+\S+\s+LISTENING\s+(\d+)/i);
-      if (match && parseInt(match[2], 10) === pid) {
-        ports.push(parseInt(match[1], 10));
+      // Expected: TCP  0.0.0.0:57213  0.0.0.0:0  LISTENING  60084
+      // Also:     TCP  [::]:57213     [::]:0     LISTENING  60084  (IPv6)
+      const parts = line.trim().split(/\s+/);
+      if (
+        parts.length < 5 ||
+        parts[0].toUpperCase() !== "TCP" ||
+        parts[3].toUpperCase() !== "LISTENING"
+      ) {
+        continue;
+      }
+      const linePid = parseInt(parts[4], 10);
+      if (isNaN(linePid) || linePid !== pid) continue;
+      // Extract port from local address (last colon-delimited segment)
+      const portMatch = parts[1].match(/:(\d+)$/);
+      if (!portMatch) continue;
+      const port = parseInt(portMatch[1], 10);
+      if (!seen.has(port)) {
+        seen.add(port);
+        ports.push(port);
       }
     }
     return ports;
   } catch (err: unknown) {
-    console.error(`[AYesMan] findListeningPorts(${pid}) error: ${(err as Error).message}`);
+    log(`[AYesMan] findListeningPorts(${pid}) error: ${(err as Error).message}`);
     return [];
   }
 }
 
+// Finds ports that process `pid` (ExtHost) is connected to via TCP ESTABLISHED.
+// Supports both IPv4 (127.0.0.1) and IPv6 ([::1]) loopback addresses.
 export async function findExtHostConnectedPorts(pid: number): Promise<number[]> {
   try {
     const stdout = await getNetstatData();
+    const seen = new Set<number>();
     const ports: number[] = [];
     for (const line of stdout.split(/\r?\n/)) {
-      // e.g. "  TCP    127.0.0.1:54321    127.0.0.1:57213    ESTABLISHED    25128"
-      const match = line.match(/\bTCP\b\s+\S+:\d+\s+127\.0\.0\.1:(\d+)\s+ESTABLISHED\s+(\d+)/i);
-      if (match && parseInt(match[2], 10) === pid) {
-        ports.push(parseInt(match[1], 10));
+      // Expected: TCP  127.0.0.1:54321  127.0.0.1:57213  ESTABLISHED  25128
+      // Also:     TCP  [::1]:54321      [::1]:57213      ESTABLISHED  25128
+      const parts = line.trim().split(/\s+/);
+      if (
+        parts.length < 5 ||
+        parts[0].toUpperCase() !== "TCP" ||
+        parts[3].toUpperCase() !== "ESTABLISHED"
+      ) {
+        continue;
+      }
+      const linePid = parseInt(parts[4], 10);
+      if (isNaN(linePid) || linePid !== pid) continue;
+      // Extract port from foreign/remote address — must be a loopback target
+      const remoteMatch = parts[2].match(/(?:127\.0\.0\.1|\[::1\]):(\d+)$/);
+      if (!remoteMatch) continue;
+      const port = parseInt(remoteMatch[1], 10);
+      if (!seen.has(port)) {
+        seen.add(port);
+        ports.push(port);
       }
     }
     return ports;
   } catch (err: unknown) {
-    console.error(`[AYesMan] findExtHostConnectedPorts(${pid}) error: ${(err as Error).message}`);
+    log(`[AYesMan] findExtHostConnectedPorts(${pid}) error: ${(err as Error).message}`);
     return [];
   }
 }

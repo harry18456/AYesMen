@@ -33,10 +33,20 @@ export function callGrpc(
           try {
             resolve(JSON.parse(responseBody));
           } catch {
-            resolve(responseBody);
+            // Server returned HTTP 200 but body is not valid JSON — reject with
+            // a clear error so callers get a typed failure, not a raw string.
+            reject(
+              new Error(
+                `Invalid JSON response: ${responseBody.slice(0, 200)}`,
+              ),
+            );
           }
         } else {
-          reject(new Error(`HTTP ${res.statusCode}: ${responseBody}`));
+          // Truncate large error bodies to keep error messages readable.
+          const truncated =
+            responseBody.slice(0, 200) +
+            (responseBody.length > 200 ? "..." : "");
+          reject(new Error(`HTTP ${res.statusCode}: ${truncated}`));
         }
       });
     });

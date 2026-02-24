@@ -1,6 +1,7 @@
 import { getCachedServerInfo, clearCachedServerInfo } from "../server/discovery.js";
 import { tryAutoAcceptStep } from "./acceptStep.js";
 import { fetchQuota } from "../quota/fetch.js";
+import { log } from "../logger.js";
 
 const AUTO_ACCEPT_INTERVAL_MS = 500;
 // Cooldown before re-triggering server discovery after a connection error.
@@ -29,9 +30,12 @@ export function startAutoAcceptLoop(): { dispose: () => void } {
       await tryAutoAcceptStep(server);
     } catch (err: unknown) {
       const msg = (err as Error)?.message ?? String(err);
-      if (msg !== lastAutoAcceptError) {
-        console.log(`[AYesMan] auto-accept error: ${msg}`);
-        lastAutoAcceptError = msg;
+      // Deduplicate by error prefix (first 50 chars) to avoid log spam when
+      // dynamic values (timestamps, PIDs) differ but the error type is the same.
+      const msgKey = msg.substring(0, 50);
+      if (msgKey !== lastAutoAcceptError) {
+        log(`[AYesMan] auto-accept error: ${msg}`);
+        lastAutoAcceptError = msgKey;
       }
       clearCachedServerInfo();
       // Schedule a quick re-discovery so auto-accept resumes promptly

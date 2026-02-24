@@ -1,5 +1,6 @@
 import type { ServerInfo } from "../types/index.js";
 import { callGrpc } from "../server/grpc.js";
+import { log } from "../logger.js";
 
 // Track step indices we've already accepted (cascadeId → Set<stepIndex>).
 // Prevents re-accepting the same step while it's still transitioning to DONE.
@@ -23,8 +24,8 @@ const DONE_STATUSES = new Set([
 // Flow:
 //   GetAllCascadeTrajectories {}
 //     → prefer non-IDLE, sort by lastModifiedTime desc, take top 3
-//   GetCascadeTrajectorySteps (last 50 steps)
-//     → find pending runCommand (not DONE/CANCELLED)
+//   GetCascadeTrajectorySteps (last 10 steps)
+//     → find pending runCommand (not DONE/CANCELLED, non-empty command)
 //   HandleCascadeUserInteraction { confirm: true }
 //     → using cascade's own trajectoryId (NOT user-level trajectory)
 export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
@@ -47,7 +48,7 @@ export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
   for (const { cascadeId, trajectoryId, stepCount } of candidates) {
     if (stepCount === 0) continue;
 
-    const stepOffset = Math.max(0, stepCount - 50);
+    const stepOffset = Math.max(0, stepCount - 10);
 
     const stepsResult = await callGrpc(server, "GetCascadeTrajectorySteps", {
       cascadeId,
@@ -82,13 +83,17 @@ export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
       const proposedCmd: string =
         runCmd.proposedCommandLine ?? runCmd.commandLine ?? "";
 
-      console.log(
+      // Skip steps with no command — accepting an empty command is a no-op
+      // and may indicate a malformed step from the server.
+      if (!proposedCmd) continue;
+
+      log(
         `[AYesMan] Attempting to accept step ${absoluteIdx} (local: ${i}, total: ${stepCount}): ${proposedCmd.substring(0, 50)}`,
       );
 
       // Final safety check: if user turned it off during the async discovery process, stop here.
       if (!_getAutoAcceptEnabled()) {
-        console.log(
+        log(
           `[AYesMan] Auto-Accept was disabled while processing step ${absoluteIdx}. Aborting.`,
         );
         return;
@@ -112,7 +117,7 @@ export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
         acceptedStepIndices.set(cascadeId, new Set());
       }
       acceptedStepIndices.get(cascadeId)!.add(absoluteIdx);
-      console.log(
+      log(
         `[AYesMan] Auto-accepted step ${absoluteIdx}: ${proposedCmd.substring(0, 80)}`,
       );
       return;

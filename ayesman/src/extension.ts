@@ -4,6 +4,7 @@ import { initQuotaFetch, fetchQuota } from "./quota/fetch.js";
 import { initAcceptStep } from "./autoAccept/acceptStep.js";
 import { initAutoAcceptLoop, startAutoAcceptLoop } from "./autoAccept/loop.js";
 import { getCachedServerInfo } from "./server/discovery.js";
+import { initOutputChannel, log } from "./logger.js";
 
 const QUOTA_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
@@ -14,7 +15,9 @@ function getAutoAcceptEnabled(): boolean {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log("[AYesMan] Extension Activated.");
+  const outputChannel = initOutputChannel();
+  context.subscriptions.push(outputChannel);
+  log("[AYesMan] Extension Activated.");
   const extVersion = context.extension.packageJSON.version as string;
 
   // ── Status Bar ──
@@ -90,7 +93,7 @@ export function activate(context: vscode.ExtensionContext) {
   const quotaPollTimer = setInterval(() => fetchQuota(), QUOTA_POLL_INTERVAL_MS);
   context.subscriptions.push({ dispose: () => clearInterval(quotaPollTimer) });
 
-  console.log("[AYesMan] Ready. Auto-Accept: ON, Quota Dashboard: polling.");
+  log("[AYesMan] Ready. Auto-Accept: ON, Quota Dashboard: polling.");
 }
 
 export function deactivate() {}

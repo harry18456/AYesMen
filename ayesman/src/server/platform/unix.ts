@@ -18,8 +18,11 @@ export async function findLanguageServerProcesses(): Promise<ProcessInfo[]> {
       .filter(Boolean);
     const processes: ProcessInfo[] = [];
     // ps aux columns: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND...
+    // PID is always the 2nd field (index 1), COMMAND starts at index 10.
+    // Guard against malformed/short lines (e.g. busybox ps variants).
     for (const line of lines) {
       const parts = line.split(/\s+/);
+      if (parts.length < 11) continue;
       const pid = parseInt(parts[1], 10);
       const cmdline = parts.slice(10).join(" ");
       if (pid && cmdline) {
@@ -49,6 +52,9 @@ export async function findListeningPorts(pid: number): Promise<number[]> {
   }
 }
 
+// Finds ports that process `pid` (ExtHost) is connected to via TCP ESTABLISHED.
+// Supports both IPv4 (127.0.0.1) and IPv6 (::1) loopback addresses,
+// as some Linux/macOS systems default to IPv6-first connections.
 export async function findExtHostConnectedPorts(pid: number): Promise<number[]> {
   try {
     const { stdout } = await execAsync(
@@ -57,7 +63,7 @@ export async function findExtHostConnectedPorts(pid: number): Promise<number[]> 
     );
     const ports: number[] = [];
     for (const line of stdout.split("\n")) {
-      const match = line.match(/->(?:127\.0\.0\.1|localhost):(\d+)/);
+      const match = line.match(/->(?:127\.0\.0\.1|::1|localhost):(\d+)/);
       if (match) ports.push(parseInt(match[1], 10));
     }
     return ports;
