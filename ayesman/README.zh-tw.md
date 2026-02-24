@@ -14,8 +14,8 @@
 
 一個狀態列項目，包辦所有事。
 
-- **執行中**：`$(debug-start) YesMan` — 自動確認啟用中
-- **暫停中**：`$(debug-pause) YesMan` — 自動確認已關閉（橘色背景）
+- **執行中**：`▶️ YesMan` — 自動確認啟用中
+- **暫停中**：`⏸️ YesMan` — 自動確認已關閉（橘色背景）
 - **點擊**：切換自動確認開關
 - **懸浮**：查看所有模型配額與重置時間
 - **背景色**：配額不足時變黃（<40%）或紅（<20%）
@@ -27,9 +27,9 @@
 - **隨時切換**：點擊狀態列項目，或 `Ctrl+Shift+P` → `AYesMan: Toggle Auto-Accept`
 - **多專案安全**：同時開啟多個 Antigravity 視窗時，各視窗獨立運作，不會互相干擾
 - **預設開啟**：擴充套件載入時自動啟用
-- **無過濾限制**：Antigravity 內建的 Auto Run 會攔截含有 `|`、`;` 或特定關鍵字（如 `rmdir`）的指令，AYesMan 全部自動確認——詳見 [NOTE.zh-tw.md](NOTE.zh-tw.md)。
+- **無過濾限制**：Antigravity 內建的 Auto Run 會攔截含有 `|`、`;` 或特定關鍵字（如 `rmdir`）的指令，AYesMan 全部自動確認。
 
-> ⚠️ **資安提醒**：由於 AYesMan 繞過了 Antigravity 的安全過濾機制，在開啟自動確認的情況下處理不受信任的檔案或 repo 時，存在 prompt injection 風險。審查陌生程式碼時，建議先暫停自動確認（`$(debug-pause) YesMan`）。
+> ⚠️ **資安提醒**：由於 AYesMan 繞過了 Antigravity 的安全過濾機制，在開啟自動確認的情況下處理不受信任的檔案或 repo 時，存在 prompt injection 風險。審查陌生程式碼時，建議先暫停自動確認（`⏸️ YesMan`）。
 
 ### 📊 配額儀表板
 
@@ -44,7 +44,6 @@ Antigravity 的 UI 不會顯示各模型的剩餘配額百分比。AYesMan 幫�
 ## 系統需求
 
 - Google Antigravity IDE
-- Antigravity 語言伺服器需在執行中（隨 IDE 自動啟動）
 
 ---
 
@@ -59,10 +58,10 @@ Antigravity 的 UI 不會顯示各模型的剩餘配額百分比。AYesMan 幫�
 
 ## 運作方式
 
-AYesMan 與在你電腦上本機執行的 Antigravity 語言伺服器溝通。除了 Antigravity 本身已傳送的資料外，不會有任何資料離開你的電腦——AYesMan 只讀取並操作本機進程。
+AYesMan 與在你電腦上本機執行的 Antigravity 溝通。除了 Antigravity 本身已傳送的資料外，不會有任何資料離開你的電腦——AYesMan 只讀取並操作本機進程。
 
-- **配額資料**：向本機語言伺服器查詢 IDE 內部使用的配額資訊。
-- **自動確認**：透過本機語言伺服器偵測待確認的 Agent 步驟，並代替你確認——等同於你自己點了 Accept 按鈕。
+- **配額資料**：向本機 Antigravity 查詢 IDE 內部使用的配額資訊。
+- **自動確認**：透過本機 Antigravity 偵測待確認的 Agent 步驟，並代替你確認——等同於你自己點了 Accept 按鈕。
 
 ---
 
@@ -75,9 +74,9 @@ AYesMan 與在你電腦上本機執行的 Antigravity 語言伺服器溝通。�
 
 ## 免責聲明
 
-AYesMan 是由社群獨立開發的非官方工具，透過與 Antigravity 本機語言伺服器互動，提供官方 UI 未提供的功能。請自行評估是否使用。
+AYesMan 是由社群獨立開發的非官方工具，透過與 Antigravity 互動，提供官方 UI 未提供的功能。請自行評估是否使用。
 
-本擴充套件完全在本機（localhost）運作。所有 API 呼叫都發送至 Antigravity 的本機語言伺服器，使用你現有的 session 憑證——與正常 IDE 操作行為完全相同，不會直接接觸 Google 的伺服器。
+本擴充套件完全在本機（localhost）運作。所有 API 呼叫都在本機與 Antigravity 進行，使用你現有的 session 憑證——與正常 IDE 操作行為完全相同，不會直接接觸 Google 的伺服器。
 
 本擴充套件不會繞過任何配額限制、不會增加 API 使用量，也不會將你的資料傳送至任何第三方。
 
