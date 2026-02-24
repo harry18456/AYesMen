@@ -8,10 +8,13 @@ import { initOutputChannel, log } from "./logger.js";
 
 const QUOTA_POLL_INTERVAL_MS = 2 * 60 * 1000; // 2 minutes
 
+// Per-window in-memory auto-accept state.
+// Each Extension Host has its own JS heap, so this is naturally isolated
+// per VS Code window. Defaults to true on every extension activation.
+let _autoAcceptEnabled = true;
+
 function getAutoAcceptEnabled(): boolean {
-  return vscode.workspace
-    .getConfiguration()
-    .get<boolean>("ayesman.autoAccept", true);
+  return _autoAcceptEnabled;
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -40,26 +43,13 @@ export function activate(context: vscode.ExtensionContext) {
   // ── Auto-Accept Toggle Command ──
   context.subscriptions.push(
     vscode.commands.registerCommand("ayesman.toggleAutoAccept", async () => {
-      const current = getAutoAcceptEnabled();
-      await vscode.workspace
-        .getConfiguration()
-        .update(
-          "ayesman.autoAccept",
-          !current,
-          vscode.ConfigurationTarget.Global,
-        );
+      _autoAcceptEnabled = !_autoAcceptEnabled;
+      updateUnifiedStatusBar();
       vscode.window.showInformationMessage(
-        !current ? "[AYesMan] Auto-Accept: ON" : "[AYesMan] Auto-Accept: OFF",
+        _autoAcceptEnabled
+          ? "[AYesMan] Auto-Accept: ON"
+          : "[AYesMan] Auto-Accept: OFF",
       );
-    }),
-  );
-
-  // ── Sync UI on Configuration Change ──
-  context.subscriptions.push(
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("ayesman.autoAccept")) {
-        updateUnifiedStatusBar();
-      }
     }),
   );
 
