@@ -22,4 +22,5 @@ export interface ServerInfo {
 export interface ProcessInfo {
   pid: number;
   cmdline: string;
+  parentPid?: number;
 }

@@ -7,7 +7,7 @@ const execAsync = promisify(exec);
 export async function findLanguageServerProcesses(): Promise<ProcessInfo[]> {
   try {
     const { stdout } = await execAsync(
-      "ps aux | grep 'language_server' | grep -v grep",
+      "ps -eo pid,ppid,args | grep 'language_server' | grep -v grep",
       { timeout: 10000 },
     );
     if (!stdout.trim()) return [];
@@ -17,16 +17,19 @@ export async function findLanguageServerProcesses(): Promise<ProcessInfo[]> {
       .map((l) => l.trim())
       .filter(Boolean);
     const processes: ProcessInfo[] = [];
-    // ps aux columns: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND...
-    // PID is always the 2nd field (index 1), COMMAND starts at index 10.
-    // Guard against malformed/short lines (e.g. busybox ps variants).
+    // ps -eo pid,ppid,args columns: PID(0) PPID(1) ARGS(2+)
     for (const line of lines) {
       const parts = line.split(/\s+/);
-      if (parts.length < 11) continue;
-      const pid = parseInt(parts[1], 10);
-      const cmdline = parts.slice(10).join(" ");
+      if (parts.length < 3) continue;
+      const pid = parseInt(parts[0], 10);
+      const parentPid = parseInt(parts[1], 10);
+      const cmdline = parts.slice(2).join(" ");
       if (pid && cmdline) {
-        processes.push({ pid, cmdline });
+        processes.push({
+          pid,
+          cmdline,
+          parentPid: isNaN(parentPid) ? undefined : parentPid,
+        });
       }
     }
     return processes;
