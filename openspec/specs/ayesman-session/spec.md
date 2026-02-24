@@ -12,7 +12,14 @@ Session 匹配 SHALL 以 parentPid 策略為預設：
 
 - 若 `ProcessInfo.parentPid` 可用，系統 SHALL 只考慮 `parentPid === process.pid` 的 Language Server process
 - 若過濾後有候選 LS，直接對其 probe port，不發任何 gRPC workspace 比對呼叫
-- 若 `parentPid` 不可用（undefined）或過濾後無候選，系統 SHALL fallback 到 global mode（第一個可 probe 通的 LS）
+- 若 `parentPid` 不可用（undefined）或過濾後無候選，系統 SHALL fallback 到 workspace mode 或 global mode（第一個可 probe 通的 LS）
+
+### Requirement: Cross-Platform Session Isolation
+AYesMan MUST ensure per-window session isolation works consistently across all supported platforms (Windows, macOS, Linux).
+
+#### Scenario: Discovering Language Server on macOS/Linux
+- **WHEN** AYesMan uses `lsof` to find listening ports for the Extension Host process on macOS or Linux
+- **THEN** it MUST use the `-a` flag (AND) to ensure it only returns network ports that actually belong to that specific Extension Host process, preventing cross-window contamination.
 
 `ayesman.sessionMatch` 設定已廢棄，extension 不再讀取此設定。
 
