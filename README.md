@@ -162,19 +162,30 @@ This creates a **prompt injection** attack surface:
 
 ## Findings: Antigravity Terminal Auto Run Limitations
 
-Even with Antigravity's built-in Auto Run enabled, certain command patterns always require manual approval:
+Even with Antigravity's built-in Auto Run enabled, its internal filtering mechanism exhibits **drastically different design logic and blind spots** across operating systems.
 
-**Blocked (always requires manual confirmation):**
+### macOS vs Windows Interception Rules
 
-- Commands containing `|` (pipe) or `;` (semicolon)
-- Specific blacklisted commands: `rmdir`, `Get-Command`, and others
+| Command Category / Operators                            | macOS (zsh) | Windows (PowerShell) |
+| ------------------------------------------------------- | ----------- | -------------------- |
+| **Pipe `\|`**                                           | ✅ Allowed  | ❌ Blocked           |
+| **Semicolon `;`**                                       | ✅ Allowed  | ❌ Blocked           |
+| **AND `&&`**                                            | ✅ Allowed  | ❌ Blocked           |
+| **Redirect `>`**                                        | ✅ Allowed  | ❌ Blocked           |
+| **`rmdir`**                                             | ❌ Blocked  | ❌ Blocked           |
+| **Dangerous commands** (`rm -rf`, `sudo`, `chmod` etc.) | ✅ Allowed  | ✅ Allowed           |
+| **General commands** (`mkdir`, `curl`, `git` etc.)      | ✅ Allowed  | ✅ Allowed           |
 
-**Allowed (auto-runs successfully):**
+### Key Discoveries
 
-- Single commands not on the blacklist: `mkdir`, `ls`, `New-Item`, `Remove-Item`, `Get-Content`, etc.
-- Path scope is not checked — commands accessing paths outside the workspace auto-run fine
+1. **Windows focuses on syntax chaining prevention**: The Windows version strictly blocks all special characters (`|`, `;`, `&&`, `>`), meaning chained or complex commands are highly likely to be interrupted. However, it rarely filters destructive commands themselves (e.g., `rm`).
+2. **macOS is extremely permissive**: Almost all commands containing special characters and destructive actions are allowed by default.
+3. **Bizarre blind spots**: The only command consistently blocked on both platforms is `rmdir`, while the much more destructive `rm` (including recursive/force flags) is allowed through.
 
-**Tip for agents**: Break multi-step logic into separate sequential commands. Avoid `|`, `;`, and blacklisted commands to maximize seamless auto-execution.
+**AYesMan's core value across platforms:**
+
+- **On Windows**: Bypasses the frequent popups and interruptions caused by special characters, allowing the Agent to smoothly execute chained or complex commands automatically.
+- **On macOS**: Handles extreme edge cases (like `rmdir`) and ensures commands proactively marked as unsafe (`SafeToAutoRun: false`) by the Agent can still be auto-confirmed, achieving a truly unattended workflow.
 
 ---
 
