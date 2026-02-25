@@ -48,6 +48,7 @@ Both features share the same server discovery mechanism.
 Each Antigravity window has its own language server process. AYesMan identifies which one belongs to the current window using **parentPid matching**: Antigravity spawns the language server directly from the Extension Host process, so `language_server.parentPid === process.pid` uniquely identifies the right server without any network calls.
 
 **Windows:**
+
 ```
 PowerShell Get-CimInstance Win32_Process (language_server_windows_x64.exe)
   → extract PID, ParentProcessId, and --csrf_token
@@ -58,6 +59,7 @@ PowerShell Get-CimInstance Win32_Process (language_server_windows_x64.exe)
 ```
 
 **macOS / Linux:**
+
 ```
 ps -eo pid,ppid,args | grep language_server
   → extract PID, PPID, and --csrf_token
@@ -106,6 +108,7 @@ Auto-accept state (`ON` / `OFF`) is stored **in-memory** inside each window's Ex
 `antigravity.agent.acceptAgentStep` internally calls `HandleCascadeUserInteraction` via gRPC, which requires a `cascade_id` that is only available inside the workbench's internal state — not accessible from an extension. Direct gRPC is the only viable path.
 
 Other rejected approaches:
+
 - **Webview DOM injection**: Antigravity's chat panel is a native workbench component, not a standard VS Code Webview — injected scripts never execute
 - **Keyboard simulation (`Alt+Enter`)**: No reliable way to detect when the agent is waiting; blind sending interferes with normal typing
 
@@ -123,14 +126,15 @@ All calls are made locally to a server running on your own machine. The data rea
 
 **Risk: Low, but worth understanding.**
 
-| Concern | Assessment |
-|---------|------------|
-| Terms of Service | Using undocumented private APIs may technically violate ToS. Antigravity's ToS has not been audited for this. |
-| Detection | All API calls originate from `127.0.0.1` with a valid CSRF token, indistinguishable from normal IDE activity. The 500ms polling interval could theoretically be flagged by server-side anomaly detection, though no such mechanism has been observed. |
-| Account action | No known cases of enforcement. Community extensions doing similar automation (e.g. via `executeCommand`) have existed since Antigravity launched without action. |
-| API stability | Undocumented APIs can change or be removed at any time. The extension will silently fail rather than crash if a call fails. |
+| Concern          | Assessment                                                                                                                                                                                                                                            |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Terms of Service | Using undocumented private APIs may technically violate ToS. Antigravity's ToS has not been audited for this.                                                                                                                                         |
+| Detection        | All API calls originate from `127.0.0.1` with a valid CSRF token, indistinguishable from normal IDE activity. The 500ms polling interval could theoretically be flagged by server-side anomaly detection, though no such mechanism has been observed. |
+| Account action   | No known cases of enforcement. Community extensions doing similar automation (e.g. via `executeCommand`) have existed since Antigravity launched without action.                                                                                      |
+| API stability    | Undocumented APIs can change or be removed at any time. The extension will silently fail rather than crash if a call fails.                                                                                                                           |
 
 **What this tool does NOT do:**
+
 - It does not bypass any quota or usage limits
 - It does not increase API consumption (it only confirms steps the user would confirm manually)
 - It does not exfiltrate any data
@@ -149,6 +153,7 @@ This creates a **prompt injection** attack surface:
 4. AYesMan: **auto-confirmed**, command executes
 
 **Mitigations:**
+
 - Pause auto-accept when working with untrusted repos or files (`$(debug-pause) YesMan` in the status bar)
 - Review what the agent is reading before letting it run commands in sensitive environments
 - AYesMan is best suited for trusted, known codebases where you control the inputs
@@ -160,10 +165,12 @@ This creates a **prompt injection** attack surface:
 Even with Antigravity's built-in Auto Run enabled, certain command patterns always require manual approval:
 
 **Blocked (always requires manual confirmation):**
+
 - Commands containing `|` (pipe) or `;` (semicolon)
 - Specific blacklisted commands: `rmdir`, `Get-Command`, and others
 
 **Allowed (auto-runs successfully):**
+
 - Single commands not on the blacklist: `mkdir`, `ls`, `New-Item`, `Remove-Item`, `Get-Content`, etc.
 - Path scope is not checked — commands accessing paths outside the workspace auto-run fine
 
@@ -181,16 +188,25 @@ Even with Antigravity's built-in Auto Run enabled, certain command patterns alwa
 cd ayesman
 npm install
 npx vsce package
-# produces ayesman-1.0.0.vsix
+# produces ayesman-1.4.5.vsix
 ```
 
 **2. Install**
 
-In Antigravity: `Ctrl+Shift+P` → `Extensions: Install from VSIX...` → select `ayesman-1.0.0.vsix`
+In Antigravity: `Ctrl+Shift+P` → `Extensions: Install from VSIX...` → select `ayesman-1.4.5.vsix`
 
 ---
 
-### Option B: Deploy from source (developer mode)
+### Option C: Publish to Open VSX
+
+```bash
+cd ayesman
+npx ovsx publish ayesman-1.4.5.vsix -p <YOUR_TOKEN>
+```
+
+---
+
+### Option D: Deploy from source (developer mode)
 
 **1. Build**
 
@@ -203,7 +219,7 @@ npm run compile
 **2. Deploy to Antigravity**
 
 ```powershell
-$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-1.0.0"
+$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-1.4.5"
 
 # Remove old version if present
 if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }

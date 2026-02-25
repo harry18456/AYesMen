@@ -48,6 +48,7 @@ Antigravity 內建 UI 隱藏了各模型的剩餘配額百分比，AYesMan 在�
 每個 Antigravity 視窗都有各自的語言伺服器進程。AYesMan 使用 **parentPid 匹配**來識別屬於當前視窗的那一個：Antigravity 從 Extension Host 進程直接 spawn 語言伺服器，所以 `language_server.parentPid === process.pid` 可精準識別正確的伺服器，不需要任何網路呼叫。
 
 **Windows：**
+
 ```
 PowerShell Get-CimInstance → 找到 language_server_windows_x64.exe
   → 提取 PID、ParentProcessId 與 --csrf_token
@@ -58,6 +59,7 @@ PowerShell Get-CimInstance → 找到 language_server_windows_x64.exe
 ```
 
 **macOS / Linux：**
+
 ```
 ps -eo pid,ppid,args | grep language_server → 找到進程
   → 提取 PID、PPID 與 --csrf_token
@@ -106,6 +108,7 @@ Auto-accept 的開關狀態存在各視窗 Extension Host 進程的**記憶體**
 `antigravity.agent.acceptAgentStep` 內部透過 gRPC 呼叫 `HandleCascadeUserInteraction`，需要只存在於 workbench 內部狀態的 `cascade_id`——擴充套件無法取得。直接 gRPC 是唯一可行的方案。
 
 其他排除的方案：
+
 - **Webview DOM 注入**：Antigravity 的 Chat 面板是原生 workbench 元件，非標準 VS Code Webview，注入腳本不會執行
 - **鍵盤模擬（`Alt+Enter`）**：無法精準判斷 Agent 何時在等待確認，盲送會干擾正常打字
 
@@ -123,14 +126,15 @@ Auto-accept 的開關狀態存在各視窗 Extension Host 進程的**記憶體**
 
 **風險：低，但值得了解**
 
-| 顧慮 | 評估 |
-|------|------|
-| 使用者條款 | 使用未公開的私有 API 可能在技術上違反 ToS，但 Antigravity 的 ToS 尚未針對此情境明確定義 |
-| 被偵測 | 所有 API 呼叫來自 `127.0.0.1` 且附有合法 CSRF token，與正常 IDE 行為無法區分。500ms 的固定輪詢間隔理論上可被伺服器端異常偵測標記，但目前未觀察到此機制 |
-| 帳號處置 | 目前沒有已知的執法案例。社群上類似自動化功能的擴充套件自 Antigravity 推出以來持續存在且未被下架 |
-| API 穩定性 | 未公開的 API 可能隨時變動或移除。呼叫失敗時擴充套件會靜默略過而非崩潰 |
+| 顧慮       | 評估                                                                                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 使用者條款 | 使用未公開的私有 API 可能在技術上違反 ToS，但 Antigravity 的 ToS 尚未針對此情境明確定義                                                                |
+| 被偵測     | 所有 API 呼叫來自 `127.0.0.1` 且附有合法 CSRF token，與正常 IDE 行為無法區分。500ms 的固定輪詢間隔理論上可被伺服器端異常偵測標記，但目前未觀察到此機制 |
+| 帳號處置   | 目前沒有已知的執法案例。社群上類似自動化功能的擴充套件自 Antigravity 推出以來持續存在且未被下架                                                        |
+| API 穩定性 | 未公開的 API 可能隨時變動或移除。呼叫失敗時擴充套件會靜默略過而非崩潰                                                                                  |
 
 **本工具不會：**
+
 - 繞過任何配額或使用限制
 - 增加 API 消耗量（只是確認使用者本來就會確認的步驟）
 - 將任何資料傳送至外部
@@ -149,6 +153,7 @@ Antigravity 內建的 Auto Run 刻意攔截含有 `|`、`;` 或特定黑名單�
 4. AYesMan：**自動確認**，指令執行，資料外洩
 
 **降低風險的做法：**
+
 - 處理不受信任的 repo 或檔案時，先暫停自動確認（點擊狀態列的 `$(debug-pause) YesMan`）
 - 在敏感環境中，注意 agent 正在讀取哪些內容再讓它執行指令
 - AYesMan 最適合用於你能掌控輸入內容的受信任、已知的程式碼庫
@@ -160,10 +165,12 @@ Antigravity 內建的 Auto Run 刻意攔截含有 `|`、`;` 或特定黑名單�
 即使開啟 Antigravity 內建的 Auto Run 設定，特定指令模式仍會強制要求手動確認：
 
 **被攔截（永遠需要手動確認）：**
+
 - 包含 `|`（管線）或 `;`（分號）的指令
 - 特定黑名單指令：`rmdir`、`Get-Command` 等
 
 **可以自動執行：**
+
 - 單一且不在黑名單的指令：`mkdir`、`ls`、`New-Item`、`Remove-Item`、`Get-Content` 等
 - 路徑範圍不影響——存取 workspace 外部路徑的單一指令同樣可自動執行
 
@@ -181,16 +188,25 @@ Antigravity 內建的 Auto Run 刻意攔截含有 `|`、`;` 或特定黑名單�
 cd ayesman
 npm install
 npx vsce package
-# 產生 ayesman-1.0.0.vsix
+# 產生 ayesman-1.4.5.vsix
 ```
 
 **2. 安裝**
 
-在 Antigravity 中：`Ctrl+Shift+P` → `Extensions: Install from VSIX...` → 選擇 `ayesman-1.0.0.vsix`
+在 Antigravity 中：`Ctrl+Shift+P` → `Extensions: Install from VSIX...` → 選擇 `ayesman-1.4.5.vsix`
 
 ---
 
-### 方式 B：從原始碼部署（開發者模式）
+### 方式 C：發布至 Open VSX
+
+```bash
+cd ayesman
+npx ovsx publish ayesman-1.4.5.vsix -p <你的_TOKEN>
+```
+
+---
+
+### 方式 D：從原始碼部署（開發者模式）
 
 **1. 編譯**
 
@@ -203,7 +219,7 @@ npm run compile
 **2. 部署至 Antigravity**
 
 ```powershell
-$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-1.0.0"
+$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-1.4.5"
 
 # 移除舊版（如果有）
 if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }

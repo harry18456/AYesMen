@@ -22,25 +22,27 @@ async function getNetstatData(): Promise<string> {
 export async function findLanguageServerProcesses(): Promise<ProcessInfo[]> {
   try {
     const { stdout } = await execAsync(
-      'powershell -Command "Get-CimInstance Win32_Process -Filter \\"name LIKE \'language_server%\'\\" | ForEach-Object { Write-Host $_.ProcessId; Write-Host $_.ParentProcessId; Write-Host $_.CommandLine }"',
+      'powershell -Command "Get-CimInstance Win32_Process -Filter \\"name LIKE \'language_server%\'\\" | ForEach-Object { Write-Output \\"$($_.ProcessId)::::$($_.ParentProcessId)::::$($_.CommandLine)\\" }"',
       { timeout: 10000 },
     );
     const lines = stdout
-      .trim()
-      .split("\n")
+      .split(/\r?\n/)
       .map((l) => l.trim())
       .filter(Boolean);
     const processes: ProcessInfo[] = [];
-    for (let i = 0; i < lines.length; i += 3) {
-      const pid = parseInt(lines[i], 10);
-      const parentPid = parseInt(lines[i + 1], 10);
-      const cmdline = lines[i + 2];
-      if (pid && cmdline) {
-        processes.push({
-          pid,
-          cmdline,
-          parentPid: isNaN(parentPid) ? undefined : parentPid,
-        });
+    for (const line of lines) {
+      const parts = line.split("::::");
+      if (parts.length >= 3) {
+        const pid = parseInt(parts[0], 10);
+        const parentPid = parseInt(parts[1], 10);
+        const cmdline = parts.slice(2).join("::::");
+        if (pid && cmdline) {
+          processes.push({
+            pid,
+            cmdline,
+            parentPid: isNaN(parentPid) ? undefined : parentPid,
+          });
+        }
       }
     }
     return processes;
