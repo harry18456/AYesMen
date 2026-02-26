@@ -100,6 +100,8 @@ This extension does not bypass any quota limits, does not increase API usage, an
 
 MIT
 
+**THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.** The author is not responsible for any damages, account actions, or data loss resulting from the use of this extension.
+
 ---
 
 ---
@@ -199,3 +201,5 @@ AYesMan 是一款由社群製作的獨立、非官方工具。它透過與 Antig
 ## 授權
 
 MIT
+
+**本軟體以「現狀」提供，不作任何形式的保證。** 作者不對因使用此擴充套件而造成的任何損害、帳號處置或資料損失負責。

@@ -272,3 +272,5 @@ In Antigravity: `Ctrl+Shift+P` → `Developer: Reload Window`
 ## License
 
 MIT. This tool is for personal research and developer experience improvement only. Use at your own risk.
+
+**THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.** The author is not responsible for any damages, account actions, or data loss resulting from the use of this extension.
