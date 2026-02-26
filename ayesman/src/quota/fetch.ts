@@ -76,7 +76,7 @@ export async function fetchQuota(showNotification = false): Promise<void> {
           label: (c.label as string) || "Unknown",
           modelId: ((c.modelOrAlias as Record<string, string>)?.model) || "",
           remainingFraction:
-            ((c.quotaInfo as Record<string, number>)?.remainingFraction) ?? 1,
+            ((c.quotaInfo as Record<string, number>)?.remainingFraction) ?? 0,
           resetTime: (c.quotaInfo as Record<string, string>)?.resetTime,
         }));
     }
@@ -93,7 +93,7 @@ export async function fetchQuota(showNotification = false): Promise<void> {
             label: `${c.label as string} (Autocomplete)`,
             modelId,
             remainingFraction:
-              ((c.quotaInfo as Record<string, number>)?.remainingFraction) ?? 1,
+              ((c.quotaInfo as Record<string, number>)?.remainingFraction) ?? 0,
             resetTime: (c.quotaInfo as Record<string, string>)?.resetTime,
           });
           existingIds.add(modelId);

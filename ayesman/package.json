@@ -2,7 +2,7 @@
   "name": "ayesman",
   "displayName": "AYesMan - Antigravity YesMan",
   "description": "Unofficial integration for Google Antigravity that adds a real-time quota dashboard and automatic agent step confirmation.",
-  "version": "1.4.8",
+  "version": "1.4.9",
   "publisher": "harry18456",
   "license": "MIT",
   "icon": "icon.png",
