@@ -263,6 +263,18 @@ In Antigravity: `Ctrl+Shift+P` → `Developer: Reload Window`
 
 ---
 
+## Tested Environments
+
+The table below records the specific Antigravity builds on which AYesMan has been verified to work correctly. Because this extension reverse-engineers internal APIs, newer IDE versions may break it without notice.
+
+| AYesMan | Antigravity | VSCode OSS | Language Server CL | OS | Date |
+| ------- | ----------- | ---------- | ------------------ | -- | ---- |
+| 1.4.8 | 1.19.4 | 1.107.0 | 874942861 | Windows 11 x64 | 2026-02-26 |
+
+> **Note (v1.4.8):** Antigravity 1.19.4 changed the `--workspace_id` encoding — colons in Windows paths are now hex-encoded (`_3A`) instead of literal. AYesMan 1.4.8 fixes workspace matching for this format.
+
+---
+
 ## Support
 
 ☕ Buy me a coffee: [harry18456](https://www.buymeacoffee.com/harry18456)

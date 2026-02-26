@@ -263,6 +263,18 @@ Copy-Item -Recurse ".\ayesman" $dest
 
 ---
 
+## 測試環境紀錄
+
+下表記錄已驗證 AYesMan 正常運作的 Antigravity 版本。由於本套件依賴內部 API，IDE 版本更新可能在沒有預警的情況下造成功能失效。
+
+| AYesMan | Antigravity | VSCode OSS | Language Server CL | 作業系統 | 測試日期 |
+| ------- | ----------- | ---------- | ------------------ | -------- | -------- |
+| 1.4.8 | 1.19.4 | 1.107.0 | 874942861 | Windows 11 x64 | 2026-02-26 |
+
+> **版本說明 (v1.4.8)：** Antigravity 1.19.4 更改了 `--workspace_id` 的編碼格式——Windows 路徑中的冒號現在以十六進位編碼（`_3A`）取代字面值。AYesMan 1.4.8 修復了對應的 workspace 匹配邏輯。
+
+---
+
 ## 支持
 
 ☕ 買杯咖啡：[harry18456](https://www.buymeacoffee.com/harry18456)

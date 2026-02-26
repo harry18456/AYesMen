@@ -80,6 +80,16 @@ AYesMan communicates with Antigravity running locally on your machine. No data l
 
 ---
 
+## Tested Environments
+
+| AYesMan | Antigravity | VSCode OSS | Language Server CL | OS | Date |
+| ------- | ----------- | ---------- | ------------------ | -- | ---- |
+| 1.4.8 | 1.19.4 | 1.107.0 | 874942861 | Windows 11 x64 | 2026-02-26 |
+
+> **v1.4.8:** Fixed workspace ID matching broken by Antigravity 1.19.4's new `_3A` hex-encoding for colons in Windows paths.
+
+---
+
 ## Support
 
 ☕ Buy me a coffee: [harry18456](https://www.buymeacoffee.com/harry18456)
@@ -179,6 +189,16 @@ AYesMan 與本機端執行的 Antigravity 進行通訊。除 Antigravity 原本�
 - **忽略的檔案**：讀取在 `.gitignore` 內的相關檔案路徑詢問不會自動允許（Antigravity 已有內建允許功能）。
 - **瀏覽器操作**：瀏覽器操作的注入執行不會自動允許。
 - **平台實用性**：這款套件目前對於 **Windows 用戶**最為有用，因為 Antigravity 內建的 Auto Run 功能在 Windows 處理串連指令時較有問題。
+
+---
+
+## 測試環境紀錄
+
+| AYesMan | Antigravity | VSCode OSS | Language Server CL | 作業系統 | 測試日期 |
+| ------- | ----------- | ---------- | ------------------ | -------- | -------- |
+| 1.4.8 | 1.19.4 | 1.107.0 | 874942861 | Windows 11 x64 | 2026-02-26 |
+
+> **v1.4.8：** 修復 Antigravity 1.19.4 更新後 `_3A` 十六進位冒號編碼導致的 workspace 匹配失敗問題。
 
 ---
 
