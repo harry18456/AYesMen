@@ -4,7 +4,7 @@ An unofficial VS Code extension for Google Antigravity that adds a real-time quo
 
 > ⚠️ **Disclaimer**: This is an unofficial tool. It works by reverse-engineering Antigravity's internal language server API. See [Risks](#risks) before use.
 
-**[中文說明 → NOTE.zh-tw.md](NOTE.zh-tw.md)**
+**[中文說明 → README.zh-tw.md](README.zh-tw.md)**
 
 ---
 

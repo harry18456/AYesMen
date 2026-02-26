@@ -4,7 +4,7 @@
 
 > ⚠️ **免責聲明**：本工具為非官方工具，透過逆向工程 Antigravity 內部語言伺服器 API 取得資料。使用前請先閱讀[風險說明](#風險說明)。
 
-**[English → NOTE.md](NOTE.md)**
+**[English → README.md](README.md)**
 
 ---
 
