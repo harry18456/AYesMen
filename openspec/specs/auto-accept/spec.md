@@ -14,6 +14,8 @@ Implementation uses direct gRPC calls to the Antigravity language server:
 
 Each poll is wrapped in try/catch; errors are deduplicated by error type (not full message string) to avoid log spam.
 
+The correct language server for the current workspace MUST be identified using workspace-matching before polling. If workspace-matching fails, global mode (first responding server) SHALL be used as fallback.
+
 #### Scenario: Auto-accept triggers terminal command
 - **WHEN** Antigravity agent proposes a terminal command and polling loop runs
 - **THEN** `HandleCascadeUserInteraction` is called with `confirm: true` and the command runs automatically
@@ -29,6 +31,10 @@ Each poll is wrapped in try/catch; errors are deduplicated by error type (not fu
 #### Scenario: Empty command step skipped
 - **WHEN** a pending step has empty `proposedCommandLine` and empty `commandLine`
 - **THEN** the step is skipped without calling HandleCascadeUserInteraction
+
+#### Scenario: Workspace ID with encoded colon
+- **WHEN** the Antigravity language server emits `--workspace_id` with `:` encoded as `_3A` (e.g., `file_d_3A_side_project_Foo`)
+- **THEN** AYesMen SHALL still match it to the correct workspace folder and connect to that server (not fall back to global mode)
 
 ### Requirement: Toggle ON/OFF
 Extension SHALL provide `ayesman.toggleAutoAccept` command to enable or disable auto-accept per-window via in-memory state.
