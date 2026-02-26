@@ -160,6 +160,18 @@ Antigravity 內建的 Auto Run 刻意攔截含有 `|`、`;` 或特定黑名單�
 
 ---
 
+## 限制
+
+目前 AYesMan 有以下已知限制：
+
+1. **工作區外檔案**：讀取 workspace 外檔案的詢問不會自動允許。
+2. **忽略的檔案**：讀取在 `.gitignore` 內的相關檔案路徑詢問不會允許（Antigravity 已有內建允許功能）。
+3. **瀏覽器操作**：瀏覽器操作的注入執行不會自動允許。
+4. **脆弱性**：此套件依賴未公開的內部 API，很有可能在某次改版後失效。
+5. **平台實用性**：目前這套件對於 **Windows 用戶**來說可能比較有用，因在 Windows 的 Antigravity 內建 Auto Run 似乎有些問題（可參考下方的 [Antigravity Terminal Auto Run 限制研究](#antigravity-terminal-auto-run-限制研究) 整理）。
+
+---
+
 ## Antigravity Terminal Auto Run 限制研究
 
 即使開啟 Antigravity 內建的 Auto Run 設定，其內建的過濾機制在不同作業系統上有著**截然不同的設計邏輯與盲區**。
@@ -199,12 +211,12 @@ Antigravity 內建的 Auto Run 刻意攔截含有 `|`、`;` 或特定黑名單�
 cd ayesman
 npm install
 npx vsce package
-# 產生 ayesman-1.4.5.vsix
+# 產生 ayesman-1.4.6.vsix
 ```
 
 **2. 安裝**
 
-在 Antigravity 中：`Ctrl+Shift+P` → `Extensions: Install from VSIX...` → 選擇 `ayesman-1.4.5.vsix`
+在 Antigravity 中：`Ctrl+Shift+P` → `Extensions: Install from VSIX...` → 選擇 `ayesman-1.4.6.vsix`
 
 ---
 
@@ -212,7 +224,7 @@ npx vsce package
 
 ```bash
 cd ayesman
-npx ovsx publish ayesman-1.4.5.vsix -p <你的_TOKEN>
+npx ovsx publish ayesman-1.4.6.vsix -p <你的_TOKEN>
 ```
 
 ---
@@ -230,7 +242,7 @@ npm run compile
 **2. 部署至 Antigravity**
 
 ```powershell
-$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-1.4.5"
+$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-1.4.6"
 
 # 移除舊版（如果有）
 if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
@@ -242,6 +254,12 @@ Copy-Item -Recurse ".\ayesman" $dest
 **3. 重新載入**
 
 在 Antigravity 中：`Ctrl+Shift+P` → `Developer: Reload Window`
+
+---
+
+## 支持
+
+☕ 買杯咖啡：[harry18456](https://www.buymeacoffee.com/harry18456)
 
 ---
 

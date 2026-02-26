@@ -1,8 +1,8 @@
 {
   "name": "ayesman",
-  "displayName": "AYesMan",
-  "description": "Antigravity YesMan, Auto-accept agent steps and display model quota for Antigravity",
-  "version": "1.4.5",
+  "displayName": "AYesMan - Antigravity YesMan",
+  "description": "Unofficial integration for Google Antigravity that adds a real-time quota dashboard and automatic agent step confirmation.",
+  "version": "1.4.6",
   "publisher": "harry18456",
   "license": "MIT",
   "icon": "icon.png",

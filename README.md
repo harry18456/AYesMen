@@ -160,6 +160,18 @@ This creates a **prompt injection** attack surface:
 
 ---
 
+## Limitations
+
+Currently, AYesMan has the following known limitations:
+
+1. **Outside Workspace Files**: Prompts to read files outside the current VS Code workspace will not be auto-accepted.
+2. **Ignored Files**: Prompts to read files matched by `.gitignore` will not be auto-accepted (Antigravity has a built-in feature to allow this).
+3. **Browser Automation**: Browser injected executions and operations will not be auto-accepted.
+4. **Fragility**: This extension relies heavily on undocumented internal APIs and is highly likely to break after any Antigravity update.
+5. **Platform Utility**: This extension is currently most useful for **Windows users**, as Antigravity's built-in Auto Run feature struggles with chained commands on Windows (see [Findings: Antigravity Terminal Auto Run Limitations](#findings-antigravity-terminal-auto-run-limitations) below).
+
+---
+
 ## Findings: Antigravity Terminal Auto Run Limitations
 
 Even with Antigravity's built-in Auto Run enabled, its internal filtering mechanism exhibits **drastically different design logic and blind spots** across operating systems.
@@ -199,12 +211,12 @@ Even with Antigravity's built-in Auto Run enabled, its internal filtering mechan
 cd ayesman
 npm install
 npx vsce package
-# produces ayesman-1.4.5.vsix
+# produces ayesman-1.4.6.vsix
 ```
 
 **2. Install**
 
-In Antigravity: `Ctrl+Shift+P` → `Extensions: Install from VSIX...` → select `ayesman-1.4.5.vsix`
+In Antigravity: `Ctrl+Shift+P` → `Extensions: Install from VSIX...` → select `ayesman-1.4.6.vsix`
 
 ---
 
@@ -212,7 +224,7 @@ In Antigravity: `Ctrl+Shift+P` → `Extensions: Install from VSIX...` → select
 
 ```bash
 cd ayesman
-npx ovsx publish ayesman-1.4.5.vsix -p <YOUR_TOKEN>
+npx ovsx publish ayesman-1.4.6.vsix -p <YOUR_TOKEN>
 ```
 
 ---
@@ -230,7 +242,7 @@ npm run compile
 **2. Deploy to Antigravity**
 
 ```powershell
-$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-1.4.5"
+$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-1.4.6"
 
 # Remove old version if present
 if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
@@ -242,6 +254,12 @@ Copy-Item -Recurse ".\ayesman" $dest
 **3. Reload**
 
 In Antigravity: `Ctrl+Shift+P` → `Developer: Reload Window`
+
+---
+
+## Support
+
+☕ Buy me a coffee: [harry18456](https://www.buymeacoffee.com/harry18456)
 
 ---
 
