@@ -55,7 +55,7 @@ export async function discoverServer(): Promise<ServerInfo | undefined> {
       const hasMatch = (vscode.workspace.workspaceFolders ?? []).some((f) => {
         let path = f.uri.path;
         if (path.startsWith("/")) path = path.substring(1);
-        const expected = `${f.uri.scheme}_${path.replace(/\//g, "_")}`.toLowerCase();
+        const expected = `${f.uri.scheme}_${path.replace(/:/g, "_3A").replace(/\//g, "_")}`.toLowerCase();
         return expected === serverWsId;
       });
       if (hasMatch) return true;
