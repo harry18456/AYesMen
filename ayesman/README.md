@@ -4,6 +4,7 @@
 ![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/harry18456.ayesman?style=flat-square&color=4c1)
 ![GitHub License](https://img.shields.io/github/license/harry18456/AYesMen?style=flat-square&color=blue)
 ![GitHub stars](https://img.shields.io/github/stars/harry18456/AYesMen?style=flat-square)
+![Vibecoding](https://img.shields.io/badge/Vibecoding-on-blueviolet?style=flat-square&logo=visualstudiocode)
 
 **AYesMan** enhances your [Google Antigravity](https://antigravity.dev) experience with a unified status bar item that shows your auto-accept state and provides a real-time model quota dashboard on hover.
 
