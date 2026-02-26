@@ -1,5 +1,10 @@
 # AYesMan - Antigravity YesMan ⚡
 
+![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/harry18456.ayesman?style=flat-square&label=version&color=007acc)
+![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/harry18456.ayesman?style=flat-square&color=4c1)
+![GitHub License](https://img.shields.io/github/license/harry18456/AYesMen?style=flat-square&color=blue)
+![GitHub stars](https://img.shields.io/github/stars/harry18456/AYesMen?style=flat-square)
+
 **AYesMan** enhances your [Google Antigravity](https://antigravity.dev) experience with a unified status bar item that shows your auto-accept state and provides a real-time model quota dashboard on hover.
 
 > ⚠️ Unofficial extension. Not affiliated with or endorsed by Google or Antigravity.

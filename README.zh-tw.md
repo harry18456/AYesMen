@@ -1,5 +1,10 @@
 # AYesMan ⚡
 
+![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/harry18456.ayesman?style=flat-square&label=version&color=007acc)
+![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/harry18456.ayesman?style=flat-square&color=4c1)
+![GitHub License](https://img.shields.io/github/license/harry18456/AYesMen?style=flat-square&color=blue)
+![GitHub stars](https://img.shields.io/github/stars/harry18456/AYesMen?style=flat-square)
+
 專為 Google Antigravity 開發的非官方 VS Code 擴充套件，新增即時配額儀表板與 Agent 步驟自動確認功能。
 
 > ⚠️ **免責聲明**：本工具為非官方工具，透過逆向工程 Antigravity 內部語言伺服器 API 取得資料。使用前請先閱讀[風險說明](#風險說明)。
