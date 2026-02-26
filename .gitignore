@@ -1,5 +1,7 @@
+node_modules/
+dist/
+out/
+*.vsix
 .spectra/
 openspec/.vector-search.db
 .claude/settings.local.json
-ayesman/out/
-ayesman/*.vsix

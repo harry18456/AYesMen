@@ -13,14 +13,9 @@
   "keywords": [
     "ai",
     "antigravity",
-    "google-antigravity",
     "auto-accept",
     "quota",
-    "dashboard",
-    "automation",
-    "productivity",
-    "developer-tools",
-    "efficiency"
+    "automation"
   ],
   "engines": {
     "vscode": "^1.90.0"

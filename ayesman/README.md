@@ -1,7 +1,7 @@
 # AYesMan - Antigravity YesMan ⚡
 
-![Visual Studio Marketplace Version](https://img.shields.io/visual-studio-marketplace/v/ayesmen.ayesman?style=flat-square&label=version&color=007acc)
-![Visual Studio Marketplace Installs](https://img.shields.io/visual-studio-marketplace/i/ayesmen.ayesman?style=flat-square&color=4c1)
+![Open VSX Version](https://img.shields.io/open-vsx/v/harry18456/ayesman?style=flat-square&color=007acc)
+![Open VSX Downloads](https://img.shields.io/open-vsx/dt/harry18456/ayesman?style=flat-square&color=4c1)
 ![GitHub License](https://img.shields.io/github/license/harry18456/AYesMen?style=flat-square&color=blue)
 ![GitHub stars](https://img.shields.io/github/stars/harry18456/AYesMen?style=flat-square)
 ![Vibecoding](https://img.shields.io/badge/Vibecoding-on-blueviolet?style=flat-square&logo=visualstudiocode)
