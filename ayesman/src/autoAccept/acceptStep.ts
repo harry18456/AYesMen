@@ -29,7 +29,12 @@ const DONE_STATUSES = new Set([
 //   HandleCascadeUserInteraction { confirm: true }
 //     → using cascade's own trajectoryId (NOT user-level trajectory)
 export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
-  const allTrajs = await callGrpc(server, "GetAllCascadeTrajectories", {}) as Record<string, unknown>;
+  let allTrajs: Record<string, unknown>;
+  try {
+    allTrajs = await callGrpc(server, "GetAllCascadeTrajectories", {}) as Record<string, unknown>;
+  } catch (err) {
+    throw new Error(`GetAllCascadeTrajectories failed: ${(err as Error).message}`);
+  }
   const summaries = (allTrajs?.trajectorySummaries as Record<string, unknown>) ?? {};
 
   const candidates = Object.entries(summaries)
@@ -50,10 +55,17 @@ export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
 
     const stepOffset = Math.max(0, stepCount - 10);
 
-    const stepsResult = await callGrpc(server, "GetCascadeTrajectorySteps", {
-      cascadeId,
-      stepOffset,
-    }) as Record<string, unknown>;
+    let stepsResult: Record<string, unknown>;
+    try {
+      stepsResult = await callGrpc(server, "GetCascadeTrajectorySteps", {
+        cascadeId,
+        stepOffset,
+      }) as Record<string, unknown>;
+    } catch (err) {
+      throw new Error(
+        `GetCascadeTrajectorySteps failed [cascade=${cascadeId.substring(0, 8)}…, offset=${stepOffset}, total=${stepCount}]: ${(err as Error).message}`,
+      );
+    }
     const steps = (stepsResult?.steps as Record<string, unknown>[]) ?? [];
 
     // Clear tracking for steps that are now DONE or CANCELLED.
@@ -101,18 +113,24 @@ export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
       }
 
       // Use cascade's own trajectoryId (not user-level trajectory)
-      await callGrpc(server, "HandleCascadeUserInteraction", {
-        cascadeId,
-        interaction: {
-          trajectoryId,
-          stepIndex: absoluteIdx,
-          runCommand: {
-            confirm: true,
-            proposedCommandLine: proposedCmd,
-            submittedCommandLine: proposedCmd,
+      try {
+        await callGrpc(server, "HandleCascadeUserInteraction", {
+          cascadeId,
+          interaction: {
+            trajectoryId,
+            stepIndex: absoluteIdx,
+            runCommand: {
+              confirm: true,
+              proposedCommandLine: proposedCmd,
+              submittedCommandLine: proposedCmd,
+            },
           },
-        },
-      });
+        });
+      } catch (err) {
+        throw new Error(
+          `HandleCascadeUserInteraction failed [cascade=${cascadeId.substring(0, 8)}…, step=${absoluteIdx}, cmd=${proposedCmd.substring(0, 40)}]: ${(err as Error).message}`,
+        );
+      }
 
       if (!acceptedStepIndices.has(cascadeId)) {
         acceptedStepIndices.set(cascadeId, new Set());
