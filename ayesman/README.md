@@ -84,7 +84,10 @@ AYesMan communicates with Antigravity running locally on your machine. No data l
 
 | AYesMan | Antigravity | VSCode OSS | Language Server CL | OS | Date |
 | ------- | ----------- | ---------- | ------------------ | -- | ---- |
+| 1.4.10 | 1.21.9 | 1.107.0 | 891116727 | Windows 11 x64 | 2026-04-04 |
 | 1.4.8 | 1.19.4 | 1.107.0 | 874942861 | Windows 11 x64 | 2026-02-26 |
+
+> **v1.4.10:** Migrated transport to HTTP/2 (TLS) for server probe and restored quota/cascade API compatibility after Antigravity's internal API restructure — quota and auto-accept methods now served on the LS HTTP port.
 
 > **v1.4.8:** Fixed workspace ID matching broken by Antigravity 1.19.4's new `_3A` hex-encoding for colons in Windows paths.
 
@@ -196,7 +199,10 @@ AYesMan 與本機端執行的 Antigravity 進行通訊。除 Antigravity 原本�
 
 | AYesMan | Antigravity | VSCode OSS | Language Server CL | 作業系統 | 測試日期 |
 | ------- | ----------- | ---------- | ------------------ | -------- | -------- |
+| 1.4.10 | 1.21.9 | 1.107.0 | 891116727 | Windows 11 x64 | 2026-04-04 |
 | 1.4.8 | 1.19.4 | 1.107.0 | 874942861 | Windows 11 x64 | 2026-02-26 |
+
+> **v1.4.10：** 將 server probe 遷移至 HTTP/2（TLS），並在 Antigravity 內部 API 重構後恢復配額與 cascade 相容性 — 相關方法現改由 LS 的 HTTP port 提供。
 
 > **v1.4.8：** 修復 Antigravity 1.19.4 更新後 `_3A` 十六進位冒號編碼導致的 workspace 匹配失敗問題。
 
