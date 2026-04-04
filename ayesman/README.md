@@ -69,6 +69,12 @@ AYesMan communicates with Antigravity running locally on your machine. No data l
 
 ---
 
+## Maintenance Status
+
+The author is gradually transitioning to other platforms. **AYesMan will receive limited maintenance going forward** — critical breakages (like API changes after Antigravity updates) will be addressed when possible, but response times may be slower than before.
+
+---
+
 ## Known Limitations
 
 - **Requires Antigravity to be running** before the extension activates.
@@ -181,6 +187,12 @@ AYesMan 與本機端執行的 Antigravity 進行通訊。除 Antigravity 原本�
 
 - **配額資料**透過向本機 Antigravity 請求 IDE 內部使用的同樣資料取得。
 - **自動確認**透過偵測 Antigravity 待處理的 agent 步驟並為您自動確認 — 相當於您手動點擊了 Accept 按鈕。
+
+---
+
+## 維護狀態
+
+作者目前正逐步轉換至其他平台，**AYesMan 後續維護頻率將有所降低** — 遇到重大功能中斷（例如 Antigravity 更新後的 API 變動）時仍會盡力修復，但回應速度可能不如以往即時。
 
 ---
 
