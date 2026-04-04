@@ -273,10 +273,10 @@ The table below records the specific Antigravity builds on which AYesMan has bee
 
 | AYesMan | Antigravity | VSCode OSS | Language Server CL | OS | Date |
 | ------- | ----------- | ---------- | ------------------ | -- | ---- |
-| 1.4.10 | 1.21.9 | 1.107.0 | 891116727 | Windows 11 x64 | 2026-04-04 |
+| 1.5.0 | 1.21.9 | 1.107.0 | 891116727 | Windows 11 x64 | 2026-04-04 |
 | 1.4.8 | 1.19.4 | 1.107.0 | 874942861 | Windows 11 x64 | 2026-02-26 |
 
-> **Note (v1.4.10):** Antigravity restructured its internal API — quota and cascade methods moved to the LS HTTP port (httpPort). Probe migrated to HTTP/2 TLS. `GetUserStatus` response now wraps data under a `userStatus` key.
+> **Note (v1.5.0):** Antigravity restructured its internal API — quota and cascade methods moved to the LS HTTP port (httpPort). Probe migrated to HTTP/2 TLS. `GetUserStatus` response now wraps data under a `userStatus` key.
 
 > **Note (v1.4.8):** Antigravity 1.19.4 changed the `--workspace_id` encoding — colons in Windows paths are now hex-encoded (`_3A`) instead of literal. AYesMan 1.4.8 fixes workspace matching for this format.
 

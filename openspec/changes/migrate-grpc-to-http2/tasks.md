@@ -41,4 +41,4 @@
 - [x] 7.4 確認正確 API 端點：LS httpPort（HTTP/1.1）服務 GetUserStatus、GetCascadeModelConfigs；GetCommandModelConfigs 返回 501（不影響）
 - [x] 7.5 修正 `fetch.ts`：改用 `GetUserStatus` on httpPort，解析 `userStatus.cascadeModelConfigData.clientModelConfigs`；Part B 非致命
 - [x] 7.6 Quota Dashboard 驗證成功：`Quota refreshed: 6 models` ✅
-- [ ] 7.7 驗證 Auto-Accept 功能（`GetAllCascadeTrajectories`、`GetCascadeTrajectorySteps`、`HandleCascadeUserInteraction` 在 httpPort 正常）← 等待手動驗證
+- [x] 7.7 驗證 Auto-Accept 功能（`GetAllCascadeTrajectories`、`GetCascadeTrajectorySteps`、`HandleCascadeUserInteraction` 在 httpPort 正常）✅
