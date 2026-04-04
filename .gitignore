@@ -5,3 +5,4 @@ out/
 .spectra/
 openspec/.vector-search.db
 .claude/settings.local.json
+openspec/.vector-search.db*

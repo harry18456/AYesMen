@@ -1,3 +1,31 @@
+<!-- SPECTRA:START v1.0.1 -->
+
+# Spectra Instructions
+
+This project uses Spectra for Spec-Driven Development(SDD). Specs live in `openspec/specs/`, change proposals in `openspec/changes/`.
+
+## Use `/spectra:*` skills when:
+
+- A discussion needs structure before coding → `/spectra:discuss`
+- User wants to plan, propose, or design a change → `/spectra:propose`
+- Tasks are ready to implement → `/spectra:apply`
+- There's an in-progress change to continue → `/spectra:ingest`
+- User asks about specs or how something works → `/spectra:ask`
+- Implementation is done → `/spectra:archive`
+
+## Workflow
+
+discuss? → propose → apply ⇄ ingest → archive
+
+- `discuss` is optional — skip if requirements are clear
+- Requirements change mid-work? Plan mode → `ingest` → resume `apply`
+
+## Parked Changes
+
+Changes can be parked（暫存）— temporarily moved out of `openspec/changes/`. Parked changes won't appear in `spectra list` but can be found with `spectra list --parked`. To restore: `spectra unpark <name>`. The `/spectra:apply` and `/spectra:ingest` skills handle parked changes automatically.
+
+<!-- SPECTRA:END -->
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
@@ -30,10 +58,16 @@ npx vsce package
 
 **Deploy to Antigravity (developer mode, PowerShell):**
 ```powershell
-$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-1.0.0"
+$ver = (Get-Content .\ayesman\package.json | ConvertFrom-Json).version
+$dest = "$env:USERPROFILE\.antigravity\extensions\ayesmen.ayesman-$ver"
 if (Test-Path $dest) { Remove-Item $dest -Recurse -Force }
 Copy-Item -Recurse ".\ayesman" $dest
 # Then: Ctrl+Shift+P → "Developer: Reload Window" in Antigravity
+```
+
+**Publish to Open VSX** (publisher: `harry18456`):
+```bash
+npx ovsx publish --pat $OVSX_PAT
 ```
 
 There are no tests. There is no lint script.
@@ -72,6 +106,10 @@ src/
     statusBar.ts        — unified status bar item; text, background color, tooltip markdown
 ```
 
+### Module Init Pattern
+
+Modules use a consistent dependency-injection pattern: each exports an `initX()` function that receives getter functions or VS Code objects, storing them in module-level variables. This avoids circular imports and keeps modules testable without a DI framework. Example: `initAcceptStep(getAutoAcceptEnabled)`, `initStatusBar(bar, getVersion, getAutoAcceptEnabled)`. All `init*()` calls happen in `extension.ts:activate()`.
+
 ### Key Design Decisions
 
 **Server discovery uses a three-tier priority: parentPid → workspace_id → global.** `discoverServer()` first tries to match `language_server.parentPid === process.pid`, then falls back to matching the `--workspace_id` flag in the process cmdline against current workspace folders (schema: `<scheme>_<path_with_underscores>`), then falls back to global mode (first server that responds to Heartbeat). Cache TTL is 5 minutes; errors cause immediate invalidation.
@@ -106,3 +144,5 @@ Main specs: `openspec/specs/<capability>/spec.md`
 Archived changes: `openspec/changes/archive/`
 
 Slash commands available: `/opsx:ff`, `/opsx:apply`, `/opsx:sync`, `/opsx:archive`, `/opsx:explore`
+
+**Note:** `.spectra.yaml` sets `locale: tw` — OpenSpec artifacts are generated in zh-tw.

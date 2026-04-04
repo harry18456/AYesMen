@@ -1,5 +1,5 @@
 import type { ServerInfo } from "../types/index.js";
-import { callGrpc } from "../server/grpc.js";
+import { callLsHttpGrpc } from "../server/grpc.js";
 import { log } from "../logger.js";
 
 // Track step indices we've already accepted (cascadeId → Set<stepIndex>).
@@ -31,7 +31,7 @@ const DONE_STATUSES = new Set([
 export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
   let allTrajs: Record<string, unknown>;
   try {
-    allTrajs = await callGrpc(server, "GetAllCascadeTrajectories", {}) as Record<string, unknown>;
+    allTrajs = await callLsHttpGrpc(server, "GetAllCascadeTrajectories", {}) as Record<string, unknown>;
   } catch (err) {
     throw new Error(`GetAllCascadeTrajectories failed: ${(err as Error).message}`);
   }
@@ -57,7 +57,7 @@ export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
 
     let stepsResult: Record<string, unknown>;
     try {
-      stepsResult = await callGrpc(server, "GetCascadeTrajectorySteps", {
+      stepsResult = await callLsHttpGrpc(server, "GetCascadeTrajectorySteps", {
         cascadeId,
         stepOffset,
       }) as Record<string, unknown>;
@@ -114,7 +114,7 @@ export async function tryAutoAcceptStep(server: ServerInfo): Promise<void> {
 
       // Use cascade's own trajectoryId (not user-level trajectory)
       try {
-        await callGrpc(server, "HandleCascadeUserInteraction", {
+        await callLsHttpGrpc(server, "HandleCascadeUserInteraction", {
           cascadeId,
           interaction: {
             trajectoryId,

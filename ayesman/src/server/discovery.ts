@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import type { ServerInfo, ProcessInfo } from "../types/index.js";
 import { probePort } from "./probe.js";
+import { closeGrpcSession } from "./grpc.js";
+import { findLsDaemonEntry } from "./daemon.js";
 import * as windows from "./platform/windows.js";
 import * as unix from "./platform/unix.js";
 import { log } from "../logger.js";
@@ -25,6 +27,7 @@ export function getCachedServerInfo(): ServerInfo | undefined {
 export function clearCachedServerInfo(): void {
   _cachedServerInfo = undefined;
   _cachedAt = 0;
+  closeGrpcSession();
 }
 
 function setCachedServerInfo(info: ServerInfo): void {
@@ -103,19 +106,31 @@ async function probeProcesses(
     );
 
     for (const port of ports) {
-      for (const useHttps of [true, false]) {
-        const proto = useHttps ? "https" : "http";
-        const ok = await probePort(port, csrfToken, useHttps);
-        log(
-          `[AYesMan] PID ${proc.pid} port=${port} ${proto} probe=${ok ? "OK" : "FAIL"}`,
-        );
-        if (ok) {
-          setCachedServerInfo({ port, csrfToken, useHttps });
-          log(
-            `[AYesMan] ${mode} mode: connected to ${proto}://127.0.0.1:${port}`,
-          );
-          return _cachedServerInfo;
+      const ok = await probePort(port, csrfToken);
+      log(
+        `[AYesMan] PID ${proc.pid} port=${port} https probe=${ok ? "OK" : "FAIL"}`,
+      );
+      if (ok) {
+        const extPortMatch = proc.cmdline.match(/--extension_server_port\s+(\d+)/);
+        const extCsrfMatch = proc.cmdline.match(/--extension_server_csrf_token\s+(\S+)/);
+        const extensionServerPort = extPortMatch ? parseInt(extPortMatch[1], 10) : undefined;
+        const extensionServerCsrfToken = extCsrfMatch ? extCsrfMatch[1] : undefined;
+        if (extensionServerPort) {
+          log(`[AYesMan] Extension server port=${extensionServerPort} found in cmdline`);
+        } else {
+          log(`[AYesMan] Extension server port not found in cmdline`);
         }
+        const daemonEntry = findLsDaemonEntry(proc.pid, csrfToken);
+        // Fallback: if daemon JSON not found, try httpsPort+1 (the most common pattern).
+        const httpPort = daemonEntry?.httpPort ?? (port + 1);
+        if (daemonEntry?.httpPort) {
+          log(`[AYesMan] LS httpPort=${httpPort} from daemon JSON`);
+        } else {
+          log(`[AYesMan] LS httpPort not in daemon JSON, using fallback port+1=${httpPort}`);
+        }
+        setCachedServerInfo({ port, csrfToken, httpPort, extensionServerPort, extensionServerCsrfToken });
+        log(`[AYesMan] ${mode} mode: connected to https://127.0.0.1:${port}`);
+        return _cachedServerInfo;
       }
     }
   }

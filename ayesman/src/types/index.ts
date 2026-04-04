@@ -16,7 +16,9 @@ export interface CreditsInfo {
 export interface ServerInfo {
   port: number;
   csrfToken: string;
-  useHttps: boolean;
+  httpPort?: number;
+  extensionServerPort?: number;
+  extensionServerCsrfToken?: string;
 }
 
 export interface ProcessInfo {
