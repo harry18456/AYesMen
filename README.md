@@ -60,8 +60,9 @@ PowerShell Get-CimInstance Win32_Process (language_server_windows_x64.exe)
   → extract PID, ParentProcessId, and --csrf_token
   → filter: keep only the process whose ParentProcessId = this Extension Host PID
   → netstat -ano to find listening ports for that PID
-  → probe each port with a Heartbeat request (HTTP/HTTPS)
-  → cache result: { port, csrfToken, useHttps }
+  → probe each port with a Heartbeat request (HTTP/2 TLS)
+  → read ~/.gemini/antigravity/daemon/ls_*.json to find httpPort (fallback: httpsPort+1)
+  → cache result: { port, csrfToken, httpPort }
 ```
 
 **macOS / Linux:**
@@ -71,8 +72,9 @@ ps -eo pid,ppid,args | grep language_server
   → extract PID, PPID, and --csrf_token
   → filter: keep only the process whose PPID = this Extension Host PID
   → lsof -i -n -P -p <pid> | grep LISTEN → find listening port
-  → probe each port with a Heartbeat request
-  → cache result: { port, csrfToken, useHttps }
+  → probe each port with a Heartbeat request (HTTP/2 TLS)
+  → read ~/.gemini/antigravity/daemon/ls_*.json to find httpPort (fallback: httpsPort+1)
+  → cache result: { port, csrfToken, httpPort }
 ```
 
 If no match is found by parentPid (e.g. platform doesn't expose PPID, or multi-window macOS issues), AYesMan falls back to **workspace mode**: it extracts the `--workspace_id` argument from the server's command-line arguments and matches it against the current VS Code workspace folders. This guarantees strict per-window session isolation even when process relationships are unreadable.
@@ -81,9 +83,11 @@ The CSRF token is stored in plaintext in the process's command-line arguments, a
 
 ### 2. Quota Dashboard (every 2 minutes)
 
+Calls are made to the LS **httpPort** (plain HTTP/1.1) — cascade/quota methods are only served there, not on the TLS port.
+
 ```
-GetUserStatus          → plan info, prompt/flow credits, model quota fractions
-GetCommandModelConfigs → autocomplete model quota
+GetUserStatus (httpPort)          → userStatus.cascadeModelConfigData.clientModelConfigs
+GetCommandModelConfigs (httpPort) → autocomplete model quota (optional, skipped if 501)
 ```
 
 ### 3. Auto-Accept (every 500ms, reads from cache)
@@ -269,9 +273,18 @@ The table below records the specific Antigravity builds on which AYesMan has bee
 
 | AYesMan | Antigravity | VSCode OSS | Language Server CL | OS | Date |
 | ------- | ----------- | ---------- | ------------------ | -- | ---- |
+| 1.4.10 | 1.21.9 | 1.107.0 | 891116727 | Windows 11 x64 | 2026-04-04 |
 | 1.4.8 | 1.19.4 | 1.107.0 | 874942861 | Windows 11 x64 | 2026-02-26 |
 
+> **Note (v1.4.10):** Antigravity restructured its internal API — quota and cascade methods moved to the LS HTTP port (httpPort). Probe migrated to HTTP/2 TLS. `GetUserStatus` response now wraps data under a `userStatus` key.
+
 > **Note (v1.4.8):** Antigravity 1.19.4 changed the `--workspace_id` encoding — colons in Windows paths are now hex-encoded (`_3A`) instead of literal. AYesMan 1.4.8 fixes workspace matching for this format.
+
+---
+
+## Maintenance Status
+
+The author is gradually transitioning to other platforms. **AYesMan will receive limited maintenance going forward** — critical breakages will be addressed when possible, but response times may be slower than before.
 
 ---
 
